@@ -5,6 +5,15 @@
   "description": "划词即翻译，支持 OpenAI 兼容 API（OpenAI / DeepSeek / Groq 等）",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
+  "commands": {
+    "toggle-translate-panel": {
+      "suggested_key": {
+        "default": "Alt+Shift+T",
+        "mac": "Command+Shift+T"
+      },
+      "description": "打开/关闭翻译面板"
+    }
+  },
   "background": {
     "service_worker": "src/background.js"
   },

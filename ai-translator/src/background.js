@@ -13,10 +13,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.sync.get(null, data => sendResponse(data));
     return true;
   }
+
+  if (message.type === 'TOGGLE_PANEL') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]) return;
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'TOGGLE_PANEL' }).catch(() => {});
+    });
+  }
 });
 
-async function handleTranslation({ text, settings }) {
-  const { apiBase, apiKey, model, targetLang } = settings;
+// ─── 快捷键：打开翻译面板 ─────────────────────────────────
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'toggle-translate-panel') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]) return;
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'TOGGLE_PANEL' }).catch(() => {
+        // 忽略（内容脚本未加载时的报错）
+      });
+    });
+  }
+});
+
+async function handleTranslation({ text, settings, sourceLang, targetLang }) {
+  const { apiBase, apiKey, model } = settings;
 
   if (!apiKey) throw new Error('请先在插件设置中填写 API Key');
 
@@ -27,8 +46,16 @@ async function handleTranslation({ text, settings }) {
     'zh-CN': '简体中文', 'zh-TW': '繁体中文', 'en': '英语',
     'ja': '日语', 'ko': '韩语', 'fr': '法语', 'de': '德语', 'es': '西班牙语',
   };
-  const langName = langMap[targetLang] || targetLang || '简体中文';
-  const prompt = `将以下文本翻译成${langName}，只返回翻译结果，不解释，不加前缀：\n\n${text}`;
+
+  let prompt;
+  if (sourceLang && targetLang) {
+    const s = langMap[sourceLang] || sourceLang;
+    const t = langMap[targetLang] || targetLang;
+    prompt = `将以下文本从${s}翻译成${t}，只返回翻译结果，不解释，不加前缀：\n\n${text}`;
+  } else {
+    const t = langMap[targetLang || settings.targetLang] || targetLang || '简体中文';
+    prompt = `将以下文本翻译成${t}，只返回翻译结果，不解释，不加前缀：\n\n${text}`;
+  }
 
   const response = await fetch(url, {
     method: 'POST',
