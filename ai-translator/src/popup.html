@@ -53,6 +53,23 @@
     }
     select option { background: #1a1f2e; }
     .hint { font-size: 10px; color: #2d3748; padding-left: 1px; line-height: 1.4; }
+    .link-like { color: #63b3ed; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(99,179,237,0.3); }
+    kbd {
+      font-size: 10px; font-family: 'SF Mono','Fira Mono',monospace;
+      background: #1a1f2e; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px; padding: 1px 5px; color: #718096;
+    }
+    .panel-launch { display: flex; flex-direction: column; gap: 5px; }
+    .panel-launch-row { display: flex; align-items: center; gap: 8px; }
+    .btn-panel {
+      flex: 1; padding: 9px; background: linear-gradient(135deg, #2b6cb0, #2c5282);
+      border: none; border-radius: 9px; color: #fff; font-family: inherit;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: opacity 0.15s, transform 0.12s; letter-spacing: 0.3px;
+    }
+    .btn-panel:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-panel:active { transform: none; }
+    .shortcut-hint { font-size: 10px; color: #4a5568; white-space: nowrap; }
     .preset-row { display: flex; gap: 5px; flex-wrap: wrap; }
     .preset-btn {
       font-size: 10px; font-weight: 600; padding: 4px 9px;
@@ -124,6 +141,17 @@
 </div>
 
 <div class="bd">
+
+  <!-- 翻译面板快捷入口 -->
+  <div class="panel-launch">
+    <div class="panel-launch-row">
+      <button class="btn-panel" id="btn-open-panel">⌨ 打开翻译面板</button>
+      <span class="shortcut-hint">快捷键 <kbd>Alt+Shift+T</kbd></span>
+    </div>
+    <div class="hint">可在 <span class="link-like" id="link-shortcuts">chrome://extensions/shortcuts</span> 中自定义快捷键</div>
+  </div>
+
+  <div class="divider"></div>
 
   <div class="field">
     <label>API 地址 <span class="badge">BASE URL</span></label>

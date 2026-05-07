@@ -62,7 +62,7 @@
   });
 
   function isOurUI(el) {
-    return !!el.closest?.('#ai-tr-btn, #ai-tr-card');
+    return !!el.closest?.('#ai-tr-btn, #ai-tr-card, #ai-tr-panel');
   }
 
   // ─── 显示翻译小按钮 ──────────────────────────────────────────
@@ -222,6 +222,211 @@
     return String(s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+  }
+
+  // ─── 翻译面板（快捷键 Alt+Shift+T 触发）─────────────────────
+  let panelVisible = false;
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'TOGGLE_PANEL') {
+      panelVisible ? closePanel() : openPanel();
+    }
+  });
+
+  function openPanel() {
+    let wrap = document.getElementById('ai-tr-panel');
+    if (!wrap) wrap = buildPanel();
+    panelVisible = true;
+    wrap.style.display = '';
+    // 加载默认语言设置
+    chrome.storage.sync.get('targetLang', (d) => {
+      const src = wrap.querySelector('#ai-panel-src-lang');
+      const tgt = wrap.querySelector('#ai-panel-tgt-lang');
+      if (src.value !== 'en' || !src.dataset._inited) {
+        src.value = 'en';
+        src.dataset._inited = '1';
+      }
+      if (!tgt.dataset._inited) {
+        tgt.value = d.targetLang || 'zh-CN';
+        tgt.dataset._inited = '1';
+      }
+    });
+    // 聚焦源语言输入框
+    setTimeout(() => wrap.querySelector('#ai-panel-src-text')?.focus(), 100);
+  }
+
+  function closePanel() {
+    panelVisible = false;
+    const el = document.getElementById('ai-tr-panel');
+    if (el) el.style.display = 'none';
+  }
+
+  function buildPanel() {
+    const langList = [
+      ['zh-CN','简体中文'], ['zh-TW','繁体中文'], ['en','英语'],
+      ['ja','日语'], ['ko','韩语'], ['fr','法语'], ['de','德语'], ['es','西班牙语'],
+    ];
+    const opts = langList.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+
+    const div = document.createElement('div');
+    div.id = 'ai-tr-panel';
+    div.style.display = ''; // visible
+    div.innerHTML = `
+      <div class="ai-panel-bg"></div>
+      <div class="ai-panel-wrap">
+        <div class="ai-panel-hd">
+          <span class="ai-panel-title">AI 翻译面板</span>
+          <span style="font-size:11px;color:#4a5568;">Alt+Shift+T</span>
+          <button class="ai-panel-close" id="ai-panel-close-title">×</button>
+        </div>
+        <div class="ai-panel-bd">
+          <div class="ai-panel-langs">
+            <select id="ai-panel-src-lang">${opts}</select>
+            <button id="ai-panel-swap" title="互换语言">⇄</button>
+            <select id="ai-panel-tgt-lang">${opts}</select>
+          </div>
+          <div class="ai-panel-editors">
+            <div class="ai-panel-col">
+              <textarea id="ai-panel-src-text" placeholder="输入要翻译的文本..." spellcheck="false"></textarea>
+              <div class="ai-panel-tbar">
+                <button class="ai-tbar-btn" data-action="clear" data-side="src" title="清空">✕</button>
+                <button class="ai-tbar-btn" data-action="copy" data-side="src" title="复制">📋</button>
+              </div>
+            </div>
+            <div class="ai-panel-mid">
+              <button id="ai-panel-translate">
+                <span class="btn-text">翻译 ▶</span>
+                <span class="btn-spinner"></span>
+              </button>
+            </div>
+            <div class="ai-panel-col">
+              <textarea id="ai-panel-tgt-text" placeholder="翻译结果..." spellcheck="false"></textarea>
+              <div class="ai-panel-tbar">
+                <button class="ai-tbar-btn" data-action="clear" data-side="tgt" title="清空">✕</button>
+                <button class="ai-tbar-btn" data-action="copy" data-side="tgt" title="复制">📋</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(div);
+
+    // 关闭
+    const close = () => closePanel();
+    div.querySelector('.ai-panel-bg').addEventListener('click', close);
+    div.querySelector('#ai-panel-close-title').addEventListener('click', close);
+
+    // 互换语言
+    const srcText = div.querySelector('#ai-panel-src-text');
+    const tgtText = div.querySelector('#ai-panel-tgt-text');
+    div.querySelector('#ai-panel-swap').addEventListener('click', () => {
+      const srcLang = div.querySelector('#ai-panel-src-lang');
+      const tgtLang = div.querySelector('#ai-panel-tgt-lang');
+      [srcLang.value, tgtLang.value] = [tgtLang.value, srcLang.value];
+      [srcText.value, tgtText.value] = [tgtText.value, srcText.value];
+    });
+
+    // 翻译
+    div.querySelector('#ai-panel-translate').addEventListener('click', () => {
+      doPanelTranslate();
+    });
+
+    // Ctrl/Cmd+Enter 快捷键
+    srcText.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate();
+    });
+    tgtText.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate();
+    });
+
+    // Escape 关闭
+    div.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePanel();
+    });
+
+    // 清空 / 复制按钮
+    div.querySelectorAll('.ai-tbar-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const side = btn.dataset.side;
+        const action = btn.dataset.action;
+        const tb = side === 'src' ? srcText : tgtText;
+        if (action === 'clear') {
+          tb.value = '';
+          tb.focus();
+        } else if (action === 'copy') {
+          if (!tb.value) return;
+          navigator.clipboard.writeText(tb.value).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = '✓';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+          });
+        }
+      });
+    });
+
+    // ── 双向翻译 ──────────────────────────────────
+    function doPanelTranslate() {
+      const srcVal = srcText.value.trim();
+      const tgtVal = tgtText.value.trim();
+
+      // 判断翻译方向
+      let text, sourceLang, targetLang, resultBox;
+      if (srcVal && !tgtVal) {
+        // 左 → 右
+        text = srcVal;
+        sourceLang = div.querySelector('#ai-panel-src-lang').value;
+        targetLang = div.querySelector('#ai-panel-tgt-lang').value;
+        resultBox = tgtText;
+      } else if (tgtVal && !srcVal) {
+        // 右 → 左
+        text = tgtVal;
+        sourceLang = div.querySelector('#ai-panel-tgt-lang').value;
+        targetLang = div.querySelector('#ai-panel-src-lang').value;
+        resultBox = srcText;
+      } else {
+        // 两边都有 / 都没有 → 默认左→右
+        if (!srcVal) return;
+        text = srcVal;
+        sourceLang = div.querySelector('#ai-panel-src-lang').value;
+        targetLang = div.querySelector('#ai-panel-tgt-lang').value;
+        resultBox = tgtText;
+      }
+
+      const btn = div.querySelector('#ai-panel-translate');
+      const btnText = btn.querySelector('.btn-text');
+      const spinner = btn.querySelector('.btn-spinner');
+      btnText.style.display = 'none';
+      spinner.style.display = 'inline-block';
+      btn.disabled = true;
+
+      chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+        if (!settings?.apiKey) {
+          btnText.style.display = '';
+          spinner.style.display = 'none';
+          btn.disabled = false;
+          resultBox.value = '请先点击插件图标配置 API Key';
+          return;
+        }
+
+        chrome.runtime.sendMessage(
+          { type: 'TRANSLATE', payload: { text, settings, sourceLang, targetLang } },
+          (res) => {
+            btnText.style.display = '';
+            spinner.style.display = 'none';
+            btn.disabled = false;
+            if (res?.success) {
+              resultBox.value = res.data;
+            } else {
+              resultBox.value = '翻译失败：' + (res?.error || '未知错误');
+            }
+          }
+        );
+      });
+    }
+
+    return div;
   }
 
 })();

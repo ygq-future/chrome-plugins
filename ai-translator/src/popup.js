@@ -23,6 +23,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // ── 打开翻译面板 ──
+  document.getElementById('btn-open-panel')?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'TOGGLE_PANEL' });
+    window.close();
+  });
+
+  // ── 快捷键设置入口 ──
+  document.getElementById('link-shortcuts')?.addEventListener('click', () => {
+    chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  });
+
   // ── 保存设置 ──
   document.getElementById('btn-save').addEventListener('click', () => {
     const apiKey = document.getElementById('apiKey').value.trim();
