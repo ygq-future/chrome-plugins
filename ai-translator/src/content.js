@@ -285,7 +285,7 @@
       <div class="ai-panel-wrap">
         <div class="ai-panel-hd">
           <span class="ai-panel-title">AI 翻译面板</span>
-          <span style="font-size:11px;color:#4a5568;">Alt+Shift+T</span>
+          <span class="ai-panel-shortcut">Alt+Shift+T</span>
           <button class="ai-panel-close" id="ai-panel-close-title">×</button>
         </div>
         <div class="ai-panel-bd">
@@ -303,10 +303,14 @@
               </div>
             </div>
             <div class="ai-panel-mid">
-              <button id="ai-panel-translate">
-                <span class="btn-text">翻译 ▶</span>
-                <span class="btn-spinner"></span>
-              </button>
+              <div class="ai-translate-btn-group">
+                <button class="ai-translate-dir ai-translate-to-left" title="翻译到左侧 (←)">◀</button>
+                <button id="ai-panel-translate">
+                  <span class="btn-text">翻译</span>
+                  <span class="btn-spinner"></span>
+                </button>
+                <button class="ai-translate-dir ai-translate-to-right" title="翻译到右侧 (→)">▶</button>
+              </div>
             </div>
             <div class="ai-panel-col">
               <textarea id="ai-panel-tgt-text" placeholder="翻译结果..." spellcheck="false"></textarea>
@@ -337,22 +341,55 @@
       [srcText.value, tgtText.value] = [tgtText.value, srcText.value];
     });
 
-    // 翻译
-    div.querySelector('#ai-panel-translate').addEventListener('click', () => {
-      doPanelTranslate();
+    // 方向按钮：强制指定翻译方向
+    div.querySelector('.ai-translate-to-right').addEventListener('click', (e) => {
+      e.stopPropagation();
+      doPanelTranslate('right');
+    });
+    div.querySelector('.ai-translate-to-left').addEventListener('click', (e) => {
+      e.stopPropagation();
+      doPanelTranslate('left');
     });
 
-    // Ctrl/Cmd+Enter 快捷键
+    // 翻译按钮：默认向右翻译
+    div.querySelector('#ai-panel-translate').addEventListener('click', () => {
+      doPanelTranslate('right');
+    });
+
+    // Ctrl/Cmd+Enter 快捷键（默认向右翻译）
     srcText.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('right');
     });
     tgtText.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('right');
     });
 
     // Escape 关闭
     div.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closePanel();
+    });
+
+    // ── 文本框高度同步 ──────────────────────────────────
+    let syncing = false;
+    const ro = new ResizeObserver((entries) => {
+      if (syncing) return;
+      syncing = true;
+      const h = entries[0].target.offsetHeight;
+      srcText.style.height = h + 'px';
+      tgtText.style.height = h + 'px';
+      setTimeout(() => { syncing = false; });
+    });
+    ro.observe(srcText);
+    ro.observe(tgtText);
+
+    // 应用用户自定义的高度限制
+    chrome.storage.sync.get(['panelMinHeight', 'panelMaxHeight'], (d) => {
+      const minH = d.panelMinHeight || 100;
+      const maxH = d.panelMaxHeight || 500;
+      srcText.style.minHeight = minH + 'px';
+      srcText.style.maxHeight = maxH + 'px';
+      tgtText.style.minHeight = minH + 'px';
+      tgtText.style.maxHeight = maxH + 'px';
     });
 
     // 清空 / 复制按钮
@@ -375,29 +412,21 @@
       });
     });
 
-    // ── 双向翻译 ──────────────────────────────────
-    function doPanelTranslate() {
-      const srcVal = srcText.value.trim();
-      const tgtVal = tgtText.value.trim();
-
-      // 判断翻译方向
+    // ── 翻译（direction: 'right' = 左→右, 'left' = 右→左）──
+    function doPanelTranslate(direction) {
       let text, sourceLang, targetLang, resultBox;
-      if (srcVal && !tgtVal) {
-        // 左 → 右
-        text = srcVal;
-        sourceLang = div.querySelector('#ai-panel-src-lang').value;
-        targetLang = div.querySelector('#ai-panel-tgt-lang').value;
-        resultBox = tgtText;
-      } else if (tgtVal && !srcVal) {
+
+      if (direction === 'left') {
         // 右 → 左
-        text = tgtVal;
+        text = tgtText.value.trim();
+        if (!text) return;
         sourceLang = div.querySelector('#ai-panel-tgt-lang').value;
         targetLang = div.querySelector('#ai-panel-src-lang').value;
         resultBox = srcText;
       } else {
-        // 两边都有 / 都没有 → 默认左→右
-        if (!srcVal) return;
-        text = srcVal;
+        // 左 → 右（默认）
+        text = srcText.value.trim();
+        if (!text) return;
         sourceLang = div.querySelector('#ai-panel-src-lang').value;
         targetLang = div.querySelector('#ai-panel-tgt-lang').value;
         resultBox = tgtText;
