@@ -295,6 +295,13 @@
   letter-spacing: 0.3px;
 }
 
+.ai-panel-shortcut {
+  font-size: 11px;
+  color: #4a5568;
+  display: flex;
+  align-items: center;
+}
+
 .ai-panel-close {
   width: 24px;
   height: 24px;
@@ -396,6 +403,8 @@
 .ai-panel-col textarea {
   width: 100%;
   height: 180px;
+  min-height: 100px;
+  max-height: 500px;
   background: #161b27;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -450,7 +459,72 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 64px;
+  width: 52px;
+}
+
+/* 翻译按钮组：方向按钮 hover 时浮于主按钮两侧 */
+.ai-translate-btn-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+}
+
+/* 扩展 hover 安全区，避免鼠标移向箭头按钮时意外消失 */
+.ai-translate-btn-group::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  bottom: -10px;
+  left: -48px;
+  right: -48px;
+}
+
+/* 方向按钮（hover 时从主按钮两侧浮出） */
+.ai-translate-dir {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1e3a5f;
+  border: 1px solid rgba(99, 179, 237, 0.25);
+  color: #90cdf4;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-family: inherit;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  padding: 0;
+  z-index: 1;
+}
+
+.ai-translate-btn-group:hover .ai-translate-dir {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.ai-translate-to-left  {
+  left: -38px;
+  top: 8px;
+}
+.ai-translate-to-right {
+  right: -38px;
+  top: 8px;
+}
+
+.ai-translate-dir:hover {
+  background: #2b6cb0;
+  border-color: rgba(99, 179, 237, 0.6);
+  color: #fff;
+  transform: scale(1.15);
 }
 
 #ai-panel-translate {
