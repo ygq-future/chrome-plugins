@@ -34,6 +34,7 @@
   });
 
   // ─── 监听划词结束 ────────────────────────────────────────────
+  // 使用捕获阶段，确保在模态框阻止冒泡前捕获事件
   document.addEventListener('mouseup', (e) => {
     if (isOurUI(e.target)) return;
 
@@ -54,12 +55,12 @@
         closeAll();
       }
     }, 20);
-  });
+  }, true);
 
-  // 点击非 UI 区域 → 关闭
+  // 点击非 UI 区域 → 关闭（捕获阶段，确保在模态框中也能触发）
   document.addEventListener('mousedown', (e) => {
     if (!isOurUI(e.target)) closeAll();
-  });
+  }, true);
 
   function isOurUI(el) {
     return !!el.closest?.('#ai-tr-btn, #ai-tr-card, #ai-tr-panel');
@@ -77,7 +78,7 @@
       <span class="ai-btn-label">翻译</span>
     `;
     placeNear(btn, selectionRect, 'btn');
-    document.body.appendChild(btn);
+    getMountTarget().appendChild(btn);
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -159,7 +160,7 @@
     `;
 
     placeNear(card, selectionRect, 'card');
-    document.body.appendChild(card);
+    getMountTarget().appendChild(card);
 
     // 关闭
     card.querySelector('#ai-card-close')?.addEventListener('click', closeAll);
@@ -184,35 +185,43 @@
 
   // ─── 元素定位（靠近选区） ────────────────────────────────────
   function placeNear(el, rect, type) {
-    const sx = window.scrollX, sy = window.scrollY;
     const vw = window.innerWidth, vh = window.innerHeight;
     const GAP = 8;
 
     // 先附加到 DOM 获取实际尺寸
     el.style.visibility = 'hidden';
-    el.style.position = 'absolute';
+    el.style.position = 'fixed';
     document.body.appendChild(el);
     const elW = el.offsetWidth;
     const elH = el.offsetHeight;
     el.remove();
     el.style.visibility = '';
+    el.style.position = '';
 
-    // 默认：选区左下方
-    let left = rect.left + sx;
-    let top  = rect.bottom + sy + GAP;
+    // 使用 viewport 坐标（position: fixed），避免模态框内滚动偏移问题
+    let left = rect.left;
+    let top  = rect.bottom + GAP;
 
     // 右侧溢出 → 左移
-    if (left + elW > sx + vw - 8) left = sx + vw - elW - 8;
-    if (left < sx + 4) left = sx + 4;
+    if (left + elW > vw - 8) left = vw - elW - 8;
+    if (left < 4) left = 4;
 
     // 下方溢出 → 显示在选区上方
     if (rect.bottom + elH + GAP > vh) {
-      top = rect.top + sy - elH - GAP;
-      if (top < sy + 4) top = rect.bottom + sy + GAP; // 上方也不够就还是放下面
+      top = rect.top - elH - GAP;
+      if (top < 4) top = rect.bottom + GAP; // 上方也不够就还是放下面
     }
 
     el.style.left = left + 'px';
     el.style.top  = top  + 'px';
+  }
+
+  // ─── 挂载点 ────────────────────────────────────────────────────
+  // 如果页面有打开的 <dialog>（showModal），元素必须挂到 dialog 内部，
+  // 否则会被 dialog 的 top-layer ::backdrop 遮挡（top layer 无视 z-index）
+  function getMountTarget() {
+    const dialog = document.querySelector('dialog[open]');
+    return dialog || document.body;
   }
 
   // ─── 工具 ────────────────────────────────────────────────────
@@ -311,7 +320,7 @@
       </div>
     `;
 
-    document.body.appendChild(div);
+    getMountTarget().appendChild(div);
 
     // 关闭
     const close = () => closePanel();

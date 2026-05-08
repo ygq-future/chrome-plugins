@@ -2,7 +2,7 @@
 
 /* 翻译触发按钮 */
 #ai-tr-btn {
-  position: absolute;
+  position: fixed;
   z-index: 2147483646;
   display: flex;
   align-items: center;
@@ -52,7 +52,7 @@
 
 /* 翻译结果卡片 */
 #ai-tr-card {
-  position: absolute;
+  position: fixed;
   z-index: 2147483647;
   width: 300px;
   background: #0d1117;
