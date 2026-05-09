@@ -616,6 +616,14 @@
   pointer-events: auto;
 }
 
+/* 翻译中隐藏方向按钮 */
+.ai-translate-btn-group.is-translating .ai-translate-dir,
+.ai-translate-btn-group.is-translating:hover .ai-translate-dir {
+  opacity: 0;
+  transform: scale(0.4);
+  pointer-events: none;
+}
+
 .ai-translate-to-left  {
   left: -38px;
   top: 8px;
@@ -678,4 +686,36 @@
   border-top-color: #fff;
   border-radius: 50%;
   animation: ai-spin 0.65s linear infinite;
+}
+
+/* 浮动模式：无遮罩，可拖动，可选中页面文字 */
+#ai-tr-panel.ai-panel-floating {
+  inset: auto;
+}
+
+#ai-tr-panel.ai-panel-floating .ai-panel-bg {
+  display: none;
+}
+
+#ai-tr-panel.ai-panel-floating .ai-panel-wrap {
+  /* 面板自带阴影，无需遮罩 */
+}
+
+#ai-tr-panel.ai-panel-floating .ai-panel-hd {
+  cursor: grab;
+  user-select: none;
+}
+
+#ai-tr-panel.ai-panel-floating .ai-panel-hd.dragging {
+  cursor: grabbing;
+}
+
+/* 浮动模式关闭动画（无背景遮罩，仅面板自身缩放） */
+#ai-tr-panel.ai-panel-floating.closing {
+  animation: none;
+  pointer-events: none;
+}
+
+#ai-tr-panel.ai-panel-floating.closing .ai-panel-wrap {
+  animation: ai-card-out 0.15s ease-in forwards;
 }

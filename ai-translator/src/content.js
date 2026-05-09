@@ -278,6 +278,22 @@
     panelVisible = true;
     wrap.classList.remove('closing');
     wrap.style.display = '';
+    // 应用面板模式
+    chrome.storage.sync.get('panelMode', (d) => {
+      const mode = d.panelMode || 'modal';
+      if (mode === 'floating') {
+        wrap.classList.add('ai-panel-floating');
+        const inner = wrap.querySelector('.ai-panel-wrap');
+        const w = inner.offsetWidth || 680;
+        const h = inner.offsetHeight || 400;
+        wrap.style.left = Math.max(0, (window.innerWidth - w) / 2) + 'px';
+        wrap.style.top = Math.max(0, (window.innerHeight - h) / 2) + 'px';
+      } else {
+        wrap.classList.remove('ai-panel-floating');
+        wrap.style.left = '';
+        wrap.style.top = '';
+      }
+    });
     // 加载默认语言设置
     chrome.storage.sync.get('targetLang', (d) => {
       const src = wrap.querySelector('#ai-panel-src-lang');
@@ -501,6 +517,9 @@
 
     // ── 翻译（direction: 'right' = 左→右, 'left' = 右→左）──
     function doPanelTranslate(direction) {
+      const btn = div.querySelector('#ai-panel-translate');
+      if (btn.disabled) return; // 防抖：翻译中禁止重复触发
+
       let text, sourceLang, targetLang, resultBox;
 
       if (direction === 'left') {
@@ -519,18 +538,24 @@
         resultBox = tgtText;
       }
 
-      const btn = div.querySelector('#ai-panel-translate');
       const btnText = btn.querySelector('.btn-text');
       const spinner = btn.querySelector('.btn-spinner');
+      const btnGroup = div.querySelector('.ai-translate-btn-group');
+      btnGroup.classList.add('is-translating');
       btnText.style.display = 'none';
       spinner.style.display = 'inline-block';
       btn.disabled = true;
 
+      function finish() {
+        btnGroup.classList.remove('is-translating');
+        btnText.style.display = '';
+        spinner.style.display = 'none';
+        btn.disabled = false;
+      }
+
       chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
         if (!settings?.apiKey) {
-          btnText.style.display = '';
-          spinner.style.display = 'none';
-          btn.disabled = false;
+          finish();
           resultBox.value = '请先点击插件图标配置 API Key';
           return;
         }
@@ -538,9 +563,7 @@
         chrome.runtime.sendMessage(
           { type: 'TRANSLATE', payload: { text, settings, sourceLang, targetLang } },
           (res) => {
-            btnText.style.display = '';
-            spinner.style.display = 'none';
-            btn.disabled = false;
+            finish();
             if (res?.success) {
               resultBox.value = res.data;
             } else {
@@ -550,6 +573,30 @@
         );
       });
     }
+
+    // ── 浮动模式拖拽 ────────────────────────────────────────
+    let panelDragInfo = null;
+    const panelHd = div.querySelector('.ai-panel-hd');
+    panelHd.addEventListener('mousedown', function(e) {
+      if (e.target === div.querySelector('#ai-panel-close-title')) return;
+      if (!div.classList.contains('ai-panel-floating')) return;
+      const rect = div.getBoundingClientRect();
+      panelDragInfo = { startX: e.clientX, startY: e.clientY, left: rect.left, top: rect.top };
+      panelHd.classList.add('dragging');
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!panelDragInfo) return;
+      const dx = e.clientX - panelDragInfo.startX;
+      const dy = e.clientY - panelDragInfo.startY;
+      div.style.left = Math.max(0, Math.min(window.innerWidth - div.offsetWidth, panelDragInfo.left + dx)) + 'px';
+      div.style.top = Math.max(0, Math.min(window.innerHeight - div.offsetHeight, panelDragInfo.top + dy)) + 'px';
+    });
+    document.addEventListener('mouseup', function() {
+      if (!panelDragInfo) return;
+      panelDragInfo = null;
+      panelHd.classList.remove('dragging');
+    });
 
     return div;
   }

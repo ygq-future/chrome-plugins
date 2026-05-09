@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // ── 加载已保存的设置 ──
-  chrome.storage.sync.get(['apiBase','apiKey','model','targetLang','dismissOnScroll','panelWidth','panelHeight'], (d) => {
+  chrome.storage.sync.get(['apiBase','apiKey','model','targetLang','dismissOnScroll','panelMode','panelWidth','panelHeight'], (d) => {
     if (d.apiBase)    document.getElementById('apiBase').value    = d.apiBase;
     if (d.apiKey)     document.getElementById('apiKey').value     = d.apiKey;
     if (d.model)      document.getElementById('model').value      = d.model;
@@ -11,8 +11,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // dismissOnScroll 默认 true（滚动关闭）
     const scrollMode = d.dismissOnScroll !== false ? 'scroll' : 'click';
-    const radios = document.querySelectorAll('input[name="dismissMode"]');
-    radios.forEach(r => { r.checked = r.value === scrollMode; });
+    const dismissRadios = document.querySelectorAll('input[name="dismissMode"]');
+    dismissRadios.forEach(r => { r.checked = r.value === scrollMode; });
+
+    // panelMode 默认 modal
+    const panelMode = d.panelMode || 'modal';
+    const modeRadios = document.querySelectorAll('input[name="panelMode"]');
+    modeRadios.forEach(r => { r.checked = r.value === panelMode; });
   });
 
   // ── 快捷预设按钮 ──
@@ -44,12 +49,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const selected = document.querySelector('input[name="dismissMode"]:checked');
     const dismissOnScroll = !selected || selected.value === 'scroll';
 
+    const modeSelected = document.querySelector('input[name="panelMode"]:checked');
+    const panelMode = modeSelected ? modeSelected.value : 'modal';
+
     const settings = {
       apiBase:        document.getElementById('apiBase').value.trim(),
       apiKey,
       model:          document.getElementById('model').value.trim() || 'gpt-4o-mini',
       targetLang:     document.getElementById('targetLang').value,
       dismissOnScroll,
+      panelMode,
       panelWidth:     parseInt(document.getElementById('panelWidth').value) || 700,
       panelHeight:    parseInt(document.getElementById('panelHeight').value) || 230,
     };
