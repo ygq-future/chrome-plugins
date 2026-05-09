@@ -1,13 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // ── 加载已保存的设置 ──
-  chrome.storage.sync.get(['apiBase','apiKey','model','targetLang','dismissOnScroll','panelMinHeight','panelMaxHeight'], (d) => {
+  chrome.storage.sync.get(['apiBase','apiKey','model','targetLang','dismissOnScroll','panelWidth','panelHeight'], (d) => {
     if (d.apiBase)    document.getElementById('apiBase').value    = d.apiBase;
     if (d.apiKey)     document.getElementById('apiKey').value     = d.apiKey;
     if (d.model)      document.getElementById('model').value      = d.model;
     if (d.targetLang) document.getElementById('targetLang').value = d.targetLang;
-    if (d.panelMinHeight) document.getElementById('panelMinHeight').value = d.panelMinHeight;
-    if (d.panelMaxHeight) document.getElementById('panelMaxHeight').value = d.panelMaxHeight;
+    if (d.panelWidth)  document.getElementById('panelWidth').value  = d.panelWidth;
+    if (d.panelHeight) document.getElementById('panelHeight').value = d.panelHeight;
 
     // dismissOnScroll 默认 true（滚动关闭）
     const scrollMode = d.dismissOnScroll !== false ? 'scroll' : 'click';
@@ -50,8 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
       model:          document.getElementById('model').value.trim() || 'gpt-4o-mini',
       targetLang:     document.getElementById('targetLang').value,
       dismissOnScroll,
-      panelMinHeight: parseInt(document.getElementById('panelMinHeight').value) || 100,
-      panelMaxHeight: parseInt(document.getElementById('panelMaxHeight').value) || 500,
+      panelWidth:     parseInt(document.getElementById('panelWidth').value) || 700,
+      panelHeight:    parseInt(document.getElementById('panelHeight').value) || 230,
     };
 
     chrome.storage.sync.set(settings, () => toast('✓ 设置已保存'));

@@ -33,6 +33,13 @@
     }
   });
 
+  // 点击页面任意位置关闭所有自定义下拉
+  document.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.ai-select')) {
+      document.querySelectorAll('.ai-select.open').forEach(s => s.classList.remove('open'));
+    }
+  });
+
   // ─── 监听划词结束 ────────────────────────────────────────────
   // 使用捕获阶段，确保在模态框阻止冒泡前捕获事件
   document.addEventListener('mouseup', (e) => {
@@ -165,6 +172,29 @@
     // 关闭
     card.querySelector('#ai-card-close')?.addEventListener('click', closeAll);
 
+    // 拖拽
+    const head = card.querySelector('.ai-card-head');
+    let dragInfo = null;
+    head?.addEventListener('mousedown', function(e) {
+      if (e.target === card.querySelector('#ai-card-close')) return;
+      const rect = card.getBoundingClientRect();
+      dragInfo = { startX: e.clientX, startY: e.clientY, left: rect.left, top: rect.top };
+      head.classList.add('dragging');
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!dragInfo) return;
+      const dx = e.clientX - dragInfo.startX;
+      const dy = e.clientY - dragInfo.startY;
+      card.style.left = Math.max(0, Math.min(window.innerWidth - card.offsetWidth, dragInfo.left + dx)) + 'px';
+      card.style.top = Math.max(0, Math.min(window.innerHeight - card.offsetHeight, dragInfo.top + dy)) + 'px';
+    });
+    document.addEventListener('mouseup', function() {
+      if (!dragInfo) return;
+      dragInfo = null;
+      head?.classList.remove('dragging');
+    });
+
     // 复制
     card.querySelector('#ai-copy-btn')?.addEventListener('click', function () {
       navigator.clipboard.writeText(content).then(() => {
@@ -246,6 +276,7 @@
     let wrap = document.getElementById('ai-tr-panel');
     if (!wrap) wrap = buildPanel();
     panelVisible = true;
+    wrap.classList.remove('closing');
     wrap.style.display = '';
     // 加载默认语言设置
     chrome.storage.sync.get('targetLang', (d) => {
@@ -265,9 +296,66 @@
   }
 
   function closePanel() {
+    if (!panelVisible) return;
     panelVisible = false;
+    document.querySelectorAll('.ai-select.open').forEach(s => s.classList.remove('open'));
     const el = document.getElementById('ai-tr-panel');
-    if (el) el.style.display = 'none';
+    if (!el) return;
+    el.classList.add('closing');
+    setTimeout(() => {
+      el.style.display = 'none';
+      el.classList.remove('closing');
+    }, 150);
+  }
+
+  function createSelect(langList, defaultVal, id) {
+    const el = document.createElement('div');
+    el.className = 'ai-select';
+    el.id = id;
+    let _value = defaultVal;
+
+    const optHtml = langList.map(([v, l]) =>
+      `<div class="ai-select-opt${v === defaultVal ? ' selected' : ''}" data-value="${v}">${l}</div>`
+    ).join('');
+    const initLabel = langList.find(([v]) => v === defaultVal)?.[1] || langList[0][1];
+
+    el.innerHTML = `
+      <button class="ai-select-btn" type="button">
+        <span class="ai-select-label">${initLabel}</span>
+        <span class="ai-select-arrow">▾</span>
+      </button>
+      <div class="ai-select-drop">${optHtml}</div>
+    `;
+
+    Object.defineProperty(el, 'value', {
+      get() { return _value; },
+      set(v) {
+        _value = v;
+        const label = langList.find(([lv]) => lv === v)?.[1] || v;
+        el.querySelector('.ai-select-label').textContent = label;
+        el.querySelectorAll('.ai-select-opt').forEach(o => {
+          o.classList.toggle('selected', o.dataset.value === v);
+        });
+      }
+    });
+
+    el.querySelector('.ai-select-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const wasOpen = el.classList.contains('open');
+      document.querySelectorAll('.ai-select.open').forEach(s => s.classList.remove('open'));
+      if (!wasOpen) el.classList.add('open');
+    });
+
+    el.querySelectorAll('.ai-select-opt').forEach(opt => {
+      opt.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // prevent blur on textarea
+        el.value = opt.dataset.value;
+        el.classList.remove('open');
+      });
+    });
+
+    return el;
   }
 
   function buildPanel() {
@@ -275,7 +363,6 @@
       ['zh-CN','简体中文'], ['zh-TW','繁体中文'], ['en','英语'],
       ['ja','日语'], ['ko','韩语'], ['fr','法语'], ['de','德语'], ['es','西班牙语'],
     ];
-    const opts = langList.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
 
     const div = document.createElement('div');
     div.id = 'ai-tr-panel';
@@ -290,17 +377,13 @@
         </div>
         <div class="ai-panel-bd">
           <div class="ai-panel-langs">
-            <select id="ai-panel-src-lang">${opts}</select>
+            <div id="ai-panel-src-lang"></div>
             <button id="ai-panel-swap" title="互换语言">⇄</button>
-            <select id="ai-panel-tgt-lang">${opts}</select>
+            <div id="ai-panel-tgt-lang"></div>
           </div>
           <div class="ai-panel-editors">
             <div class="ai-panel-col">
               <textarea id="ai-panel-src-text" placeholder="输入要翻译的文本..." spellcheck="false"></textarea>
-              <div class="ai-panel-tbar">
-                <button class="ai-tbar-btn" data-action="clear" data-side="src" title="清空">✕</button>
-                <button class="ai-tbar-btn" data-action="copy" data-side="src" title="复制">📋</button>
-              </div>
             </div>
             <div class="ai-panel-mid">
               <div class="ai-translate-btn-group">
@@ -314,10 +397,17 @@
             </div>
             <div class="ai-panel-col">
               <textarea id="ai-panel-tgt-text" placeholder="翻译结果..." spellcheck="false"></textarea>
-              <div class="ai-panel-tbar">
-                <button class="ai-tbar-btn" data-action="clear" data-side="tgt" title="清空">✕</button>
-                <button class="ai-tbar-btn" data-action="copy" data-side="tgt" title="复制">📋</button>
-              </div>
+            </div>
+          </div>
+          <div class="ai-panel-footers">
+            <div class="ai-panel-tbar">
+              <button class="ai-tbar-btn" data-action="clear" data-side="src" title="清空">清空</button>
+              <button class="ai-tbar-btn" data-action="copy" data-side="src" title="复制">复制</button>
+            </div>
+            <div class="ai-panel-mid-spacer"></div>
+            <div class="ai-panel-tbar">
+              <button class="ai-tbar-btn" data-action="clear" data-side="tgt" title="清空">清空</button>
+              <button class="ai-tbar-btn" data-action="copy" data-side="tgt" title="复制">复制</button>
             </div>
           </div>
         </div>
@@ -325,6 +415,14 @@
     `;
 
     getMountTarget().appendChild(div);
+
+    // 替换为自定义下拉
+    const srcPlaceholder = div.querySelector('#ai-panel-src-lang');
+    const tgtPlaceholder = div.querySelector('#ai-panel-tgt-lang');
+    const srcSelect = createSelect(langList, 'en', 'ai-panel-src-lang');
+    const tgtSelect = createSelect(langList, 'zh-CN', 'ai-panel-tgt-lang');
+    srcPlaceholder.replaceWith(srcSelect);
+    tgtPlaceholder.replaceWith(tgtSelect);
 
     // 关闭
     const close = () => closePanel();
@@ -334,11 +432,14 @@
     // 互换语言
     const srcText = div.querySelector('#ai-panel-src-text');
     const tgtText = div.querySelector('#ai-panel-tgt-text');
-    div.querySelector('#ai-panel-swap').addEventListener('click', () => {
+    const swapBtn = div.querySelector('#ai-panel-swap');
+    swapBtn.addEventListener('click', () => {
       const srcLang = div.querySelector('#ai-panel-src-lang');
       const tgtLang = div.querySelector('#ai-panel-tgt-lang');
       [srcLang.value, tgtLang.value] = [tgtLang.value, srcLang.value];
       [srcText.value, tgtText.value] = [tgtText.value, srcText.value];
+      swapBtn.classList.add('spinning');
+      setTimeout(() => swapBtn.classList.remove('spinning'), 250);
     });
 
     // 方向按钮：强制指定翻译方向
@@ -369,27 +470,13 @@
       if (e.key === 'Escape') closePanel();
     });
 
-    // ── 文本框高度同步 ──────────────────────────────────
-    let syncing = false;
-    const ro = new ResizeObserver((entries) => {
-      if (syncing) return;
-      syncing = true;
-      const h = entries[0].target.offsetHeight;
+    // 应用用户配置的面板尺寸
+    chrome.storage.sync.get(['panelWidth', 'panelHeight'], (d) => {
+      const w = d.panelWidth || 700;
+      const h = d.panelHeight || 230;
+      div.querySelector('.ai-panel-wrap').style.width = w + 'px';
       srcText.style.height = h + 'px';
       tgtText.style.height = h + 'px';
-      setTimeout(() => { syncing = false; });
-    });
-    ro.observe(srcText);
-    ro.observe(tgtText);
-
-    // 应用用户自定义的高度限制
-    chrome.storage.sync.get(['panelMinHeight', 'panelMaxHeight'], (d) => {
-      const minH = d.panelMinHeight || 100;
-      const maxH = d.panelMaxHeight || 500;
-      srcText.style.minHeight = minH + 'px';
-      srcText.style.maxHeight = maxH + 'px';
-      tgtText.style.minHeight = minH + 'px';
-      tgtText.style.maxHeight = maxH + 'px';
     });
 
     // 清空 / 复制按钮
