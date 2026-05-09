@@ -221,13 +221,13 @@
   <div class="divider"></div>
 
   <div class="field">
-    <label>面板文本框高度限制 <span class="badge">PX</span></label>
+    <label>面板尺寸 <span class="badge">PX</span></label>
     <div style="display:flex;gap:8px;">
-      <input type="number" id="panelMinHeight" placeholder="100" min="60" max="2000" style="flex:1;" />
-      <span style="color:#4a5568;align-self:center;">–</span>
-      <input type="number" id="panelMaxHeight" placeholder="500" min="60" max="2000" style="flex:1;" />
+      <input type="number" id="panelWidth" placeholder="700" min="400" max="1200" style="flex:1;" />
+      <span style="color:#4a5568;align-self:center;">×</span>
+      <input type="number" id="panelHeight" placeholder="230" min="80" max="800" style="flex:1;" />
     </div>
-    <div class="hint">最小 – 最大高度（拖动文本框边缘时生效）</div>
+    <div class="hint">宽度 × 输入框高度（px），保存后下次打开面板生效</div>
   </div>
 
   <button class="btn-save" id="btn-save">保存设置</button>
