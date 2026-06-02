@@ -151,6 +151,13 @@
         ? `<br><span class="ai-error-link" id="ai-open-settings">→ 打开设置</span>`
         : '';
       bodyHtml = `<div class="ai-error">${esc(content)}${link}</div>`;
+      if (!needSettings) {
+        footHtml = `
+          <div class="ai-card-foot">
+            <span></span>
+            <button class="ai-copy-btn" id="ai-retry-btn">重试</button>
+          </div>`;
+      }
     }
 
     card.innerHTML = `
@@ -166,8 +173,12 @@
       ${footHtml}
     `;
 
-    placeNear(card, selectionRect, 'card');
+    // 先隐藏挂载，自动调整尺寸后再定位，避免闪动
+    card.style.visibility = 'hidden';
     getMountTarget().appendChild(card);
+    if (state === 'result') autoSizeCard(card);
+    positionCard(card, selectionRect);
+    card.style.visibility = '';
 
     // 关闭
     card.querySelector('#ai-card-close')?.addEventListener('click', closeAll);
@@ -211,6 +222,62 @@
     card.querySelector('#ai-open-settings')?.addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
     });
+
+    // 重试
+    card.querySelector('#ai-retry-btn')?.addEventListener('click', () => {
+      doTranslate();
+    });
+  }
+
+  // ─── 结果卡片自动调整尺寸 ────────────────────────────────────
+  // 宽高随内容自适应（fit-content）；最大高度 = 视口高度。
+  // 若内容超出最大高度，则自动加宽以压低高度，直到不超出；
+  // 即便最宽也放不下时，结果区内部滚动兜底。
+  function autoSizeCard(card) {
+    const M = 16;
+    const maxH = window.innerHeight - M * 2;
+    const absMaxW = Math.max(260, window.innerWidth - M * 2);
+    const comfyW = Math.min(460, absMaxW);
+    const body = card.querySelector('.ai-card-body');
+
+    card.style.maxHeight = maxH + 'px';
+    card.style.width = 'auto'; // position:fixed + 仅设 left/top → 收缩到内容宽度
+    if (body) body.style.overflowY = '';
+
+    // 先按舒适宽度测量
+    card.style.maxWidth = comfyW + 'px';
+    if (card.offsetHeight <= maxH) return; // 未超高，fit-content 即可
+
+    // 超高 → 二分加宽（宽度越大，文字行数越少，高度越小）
+    let lo = comfyW, hi = absMaxW, best = absMaxW;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      card.style.maxWidth = mid + 'px';
+      if (card.offsetHeight <= maxH) { best = mid; hi = mid - 1; }
+      else lo = mid + 1;
+    }
+    card.style.maxWidth = best + 'px';
+
+    // 即便最宽仍超高 → 结果区滚动兜底
+    if (card.offsetHeight > maxH && body) body.style.overflowY = 'auto';
+  }
+
+  // ─── 卡片定位（靠近选区，元素已挂载） ──────────────────────
+  function positionCard(el, rect) {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const GAP = 8;
+    const elW = el.offsetWidth, elH = el.offsetHeight;
+
+    let left = rect.left;
+    if (left + elW > vw - 8) left = vw - elW - 8;
+    if (left < 4) left = 4;
+
+    let top = rect.bottom + GAP;
+    if (top + elH + GAP > vh) top = rect.top - elH - GAP; // 下方放不下 → 选区上方
+    top = Math.max(4, Math.min(top, vh - elH - 4));       // 始终保持在视口内
+
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
   }
 
   // ─── 元素定位（靠近选区） ────────────────────────────────────
@@ -448,6 +515,12 @@
     // 互换语言
     const srcText = div.querySelector('#ai-panel-src-text');
     const tgtText = div.querySelector('#ai-panel-tgt-text');
+
+    // 记录最近聚焦的输入框，用于智能方向判断（两边都有内容时）
+    let lastFocused = srcText;
+    srcText.addEventListener('focus', () => { lastFocused = srcText; });
+    tgtText.addEventListener('focus', () => { lastFocused = tgtText; });
+
     const swapBtn = div.querySelector('#ai-panel-swap');
     swapBtn.addEventListener('click', () => {
       const srcLang = div.querySelector('#ai-panel-src-lang');
@@ -468,17 +541,17 @@
       doPanelTranslate('left');
     });
 
-    // 翻译按钮：默认向右翻译
+    // 翻译按钮：智能判断方向
     div.querySelector('#ai-panel-translate').addEventListener('click', () => {
-      doPanelTranslate('right');
+      doPanelTranslate('auto');
     });
 
-    // Ctrl/Cmd+Enter 快捷键（默认向右翻译）
+    // Ctrl/Cmd+Enter 快捷键（智能判断方向）
     srcText.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('right');
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('auto');
     });
     tgtText.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('right');
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('auto');
     });
 
     // Escape 关闭
@@ -519,6 +592,16 @@
     function doPanelTranslate(direction) {
       const btn = div.querySelector('#ai-panel-translate');
       if (btn.disabled) return; // 防抖：翻译中禁止重复触发
+
+      // 智能方向：哪个框有内容、对向框为空，就翻到对向语言
+      if (direction === 'auto') {
+        const srcHas = !!srcText.value.trim();
+        const tgtHas = !!tgtText.value.trim();
+        if (srcHas && !tgtHas) direction = 'right';
+        else if (tgtHas && !srcHas) direction = 'left';
+        else if (srcHas && tgtHas) direction = lastFocused === tgtText ? 'left' : 'right';
+        else return; // 两边都空，无内容可译
+      }
 
       let text, sourceLang, targetLang, resultBox;
 
