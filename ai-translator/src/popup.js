@@ -1,5 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
 
+  // ── 构建目标语言自定义下拉（与翻译面板一致的样式与动画）──
+  const TGT_LANGS = [
+    ['zh-CN','🇨🇳 简体中文'], ['zh-TW','🇹🇼 繁体中文'], ['en','🇺🇸 英语'],
+    ['ja','🇯🇵 日语'], ['ko','🇰🇷 韩语'], ['fr','🇫🇷 法语'],
+    ['de','🇩🇪 德语'], ['es','🇪🇸 西班牙语'],
+  ];
+  const tgtMount = document.getElementById('targetLang-mount');
+  tgtMount.replaceWith(createSelect(TGT_LANGS, 'zh-CN', 'targetLang'));
+
+  // 点击其他处关闭打开的下拉
+  document.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.ai-select')) {
+      document.querySelectorAll('.ai-select.open').forEach(s => s.classList.remove('open'));
+    }
+  });
+
   // ── 加载已保存的设置 ──
   chrome.storage.sync.get(['apiBase','apiKey','model','targetLang','dismissOnScroll','panelMode','panelWidth','panelHeight'], (d) => {
     if (d.apiBase)    document.getElementById('apiBase').value    = d.apiBase;
@@ -73,3 +89,54 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => el.classList.remove('show'), 2400);
   }
 });
+
+// 自定义下拉组件：返回带 value get/set 的元素，外部仍可用 .value 读写
+function createSelect(langList, defaultVal, id) {
+  const el = document.createElement('div');
+  el.className = 'ai-select';
+  el.id = id;
+  let _value = defaultVal;
+
+  const optHtml = langList.map(([v, l]) =>
+    `<div class="ai-select-opt${v === defaultVal ? ' selected' : ''}" data-value="${v}">${l}</div>`
+  ).join('');
+  const initLabel = langList.find(([v]) => v === defaultVal)?.[1] || langList[0][1];
+
+  el.innerHTML = `
+    <button class="ai-select-btn" type="button">
+      <span class="ai-select-label">${initLabel}</span>
+      <span class="ai-select-arrow">▾</span>
+    </button>
+    <div class="ai-select-drop">${optHtml}</div>
+  `;
+
+  Object.defineProperty(el, 'value', {
+    get() { return _value; },
+    set(v) {
+      _value = v;
+      const label = langList.find(([lv]) => lv === v)?.[1] || v;
+      el.querySelector('.ai-select-label').textContent = label;
+      el.querySelectorAll('.ai-select-opt').forEach(o => {
+        o.classList.toggle('selected', o.dataset.value === v);
+      });
+    }
+  });
+
+  el.querySelector('.ai-select-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const wasOpen = el.classList.contains('open');
+    document.querySelectorAll('.ai-select.open').forEach(s => s.classList.remove('open'));
+    if (!wasOpen) el.classList.add('open');
+  });
+
+  el.querySelectorAll('.ai-select-opt').forEach(opt => {
+    opt.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      el.value = opt.dataset.value;
+      el.classList.remove('open');
+    });
+  });
+
+  return el;
+}

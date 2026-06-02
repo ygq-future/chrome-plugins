@@ -34,6 +34,21 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
+const REQUEST_TIMEOUT_MS = 20000;
+
+async function fetchWithTimeout(url, options, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('请求超时，请点击重试');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function handleTranslation({ text, settings, sourceLang, targetLang }) {
   const { apiBase, apiKey, model } = settings;
 
@@ -57,7 +72,7 @@ async function handleTranslation({ text, settings, sourceLang, targetLang }) {
     prompt = `将以下文本翻译成${t}，只返回翻译结果，不解释，不加前缀：\n\n${text}`;
   }
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -69,7 +84,7 @@ async function handleTranslation({ text, settings, sourceLang, targetLang }) {
       max_tokens: 1000,
       temperature: 0.3,
     }),
-  });
+  }, REQUEST_TIMEOUT_MS);
 
   if (!response.ok) {
     const errText = await response.text();
