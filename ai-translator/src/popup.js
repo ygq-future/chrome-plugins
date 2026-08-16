@@ -18,9 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const tgtSelect = createSelect(TGT_LANGS, 'zh-CN', 'targetLang', () => saveSettings());
   tgtMount.replaceWith(tgtSelect);
 
-  // ── 构建模型选择单一下拉框 ──
+  // ── 构建模型选择单一下拉框（默认无假数据，仅在有保存值或获取后展示） ──
   const modelMount = document.getElementById('model-mount');
-  const modelSelect = createSelect([['gpt-4o-mini', 'gpt-4o-mini']], 'gpt-4o-mini', 'model', () => saveSettings());
+  const modelSelect = createSelect([], '', 'model', () => saveSettings(), '请点击「获取模型列表」选择模型');
   modelMount.replaceWith(modelSelect);
 
   // 点击其他处关闭打开的下拉
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings = {
       apiBase:        document.getElementById('apiBase').value.trim(),
       apiKey:         document.getElementById('apiKey').value.trim(),
-      model:          modelSelect.value || 'gpt-4o-mini',
+      model:          modelSelect.value || '',
       targetLang:     tgtSelect.value || 'zh-CN',
       dismissOnScroll,
       panelMode,
@@ -111,9 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.getElementById('apiBase').value = btn.dataset.url;
-      if (btn.dataset.model) {
-        modelSelect.value = btn.dataset.model;
-      }
       saveSettings();
     });
   });
@@ -146,7 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
           const modelOpts = res.data.map(m => [m, m]);
-          modelSelect.updateOptions(modelOpts, modelSelect.value);
+          const current = modelSelect.value;
+          const targetModel = modelOpts.some(([m]) => m === current) ? current : modelOpts[0][0];
+          modelSelect.updateOptions(modelOpts, targetModel);
           saveSettings();
           toast(`✓ 成功获取 ${res.data.length} 个模型`);
         } else {
@@ -176,19 +175,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// 自定义下拉组件（支持动态刷新选项列表）
-function createSelect(initialList, defaultVal, id, onChange) {
+// 自定义下拉组件（支持动态刷新选项列表与占位提示）
+function createSelect(initialList, defaultVal, id, onChange, placeholder = '请选择...') {
   const el = document.createElement('div');
   el.className = 'ai-select';
   el.id = id;
   let _list = [...initialList];
-  let _value = defaultVal;
+  let _value = defaultVal || '';
 
   function renderDropdown() {
+    const drop = el.querySelector('.ai-select-drop');
+    if (!drop) return;
+
+    if (_list.length === 0) {
+      drop.innerHTML = `<div class="ai-select-empty" style="padding: 12px 10px; color: #718096; font-size: 11px; text-align: center;">暂无选项，请点击上方按钮获取</div>`;
+      return;
+    }
+
     const optHtml = _list.map(([v, l]) =>
       `<div class="ai-select-opt${v === _value ? ' selected' : ''}" data-value="${v}">${l}</div>`
     ).join('');
-    el.querySelector('.ai-select-drop').innerHTML = optHtml;
+    drop.innerHTML = optHtml;
 
     el.querySelectorAll('.ai-select-opt').forEach(opt => {
       opt.addEventListener('mousedown', (e) => {
@@ -199,34 +206,44 @@ function createSelect(initialList, defaultVal, id, onChange) {
     });
   }
 
-  const initLabel = _list.find(([v]) => v === defaultVal)?.[1] || _list[0]?.[1] || defaultVal;
+  function updateLabel() {
+    const labelSpan = el.querySelector('.ai-select-label');
+    if (!labelSpan) return;
+
+    const item = _list.find(([v]) => v === _value);
+    if (item) {
+      labelSpan.textContent = item[1];
+      labelSpan.style.color = '#e2e8f0';
+    } else if (_value) {
+      labelSpan.textContent = _value;
+      labelSpan.style.color = '#e2e8f0';
+    } else {
+      labelSpan.textContent = placeholder;
+      labelSpan.style.color = '#718096';
+    }
+  }
 
   el.innerHTML = `
     <button class="ai-select-btn" type="button">
-      <span class="ai-select-label">${initLabel}</span>
+      <span class="ai-select-label"></span>
       <span class="ai-select-arrow">▾</span>
     </button>
     <div class="ai-select-drop"></div>
   `;
 
+  updateLabel();
   renderDropdown();
 
   Object.defineProperty(el, 'value', {
     get() { return _value; },
     set(v) {
-      _value = v;
-      let item = _list.find(([lv]) => lv === v);
-      if (!item && v) {
+      _value = v || '';
+      if (v && !_list.some(([lv]) => lv === v)) {
         _list.unshift([v, v]);
-        renderDropdown();
-        item = [v, v];
       }
-      const label = item ? item[1] : v;
-      el.querySelector('.ai-select-label').textContent = label;
-      el.querySelectorAll('.ai-select-opt').forEach(o => {
-        o.classList.toggle('selected', o.dataset.value === v);
-      });
-      if (typeof onChange === 'function') onChange(v);
+      updateLabel();
+      renderDropdown();
+      if (typeof onChange === 'function') onChange(_value);
     }
   });
 
@@ -235,10 +252,8 @@ function createSelect(initialList, defaultVal, id, onChange) {
     if (selectedVal && !_list.some(([v]) => v === selectedVal)) {
       _list.unshift([selectedVal, selectedVal]);
     }
-    const nextVal = selectedVal || _list[0]?.[0] || '';
-    _value = nextVal;
-    const label = _list.find(([v]) => v === nextVal)?.[1] || nextVal;
-    el.querySelector('.ai-select-label').textContent = label;
+    _value = selectedVal || _list[0]?.[0] || '';
+    updateLabel();
     renderDropdown();
   };
 

@@ -65,6 +65,7 @@ async function handleTranslation({ text, settings, targetLang }) {
   const { apiBase, apiKey, model } = settings || {};
 
   if (!apiKey) throw new Error('请先在插件设置中填写 API Key');
+  if (!model) throw new Error('请先在插件设置中获取并选择模型');
 
   const baseUrl = (apiBase || 'https://api.openai.com').replace(/\/$/, '');
   const url = `${baseUrl}/v1/chat/completions`;
@@ -87,7 +88,7 @@ ${text}`;
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: model || 'gpt-4o-mini',
+      model,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1500,
       temperature: 0.3,
