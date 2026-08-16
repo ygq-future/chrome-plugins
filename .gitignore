@@ -36,3 +36,7 @@ out/
 
 # Other plugins (local experiments, not tracked)
 other-plugins/
+
+# AI tooling & assistant caches
+.claude/
+.superpowers/
