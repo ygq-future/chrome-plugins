@@ -29,7 +29,7 @@
     }
     .hd {
       display: flex; align-items: center; gap: 11px;
-      padding: 18px 18px 14px;
+      padding: 16px 18px 14px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
       background: linear-gradient(180deg, rgba(99,179,237,0.05) 0%, transparent 100%);
     }
@@ -43,11 +43,52 @@
     }
     .hd-info h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; }
     .hd-info p  { font-size: 11px; color: #718096; margin-top: 2px; }
+    .hd-status {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      color: #68d391;
+      background: rgba(104,211,145,0.12);
+      border: 1px solid rgba(104,211,145,0.25);
+      padding: 2px 7px;
+      border-radius: 999px;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .hd-status.show { opacity: 1; }
     .bd { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 13px; }
     .field { display: flex; flex-direction: column; gap: 5px; }
-    .field > label {
+    .field-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .field > label, .field-label-row > label {
       font-size: 11px; font-weight: 600; color: #718096;
       display: flex; align-items: center; gap: 5px;
+    }
+    .btn-fetch-models {
+      font-size: 10px;
+      font-weight: 600;
+      color: #90cdf4;
+      background: rgba(99, 179, 237, 0.1);
+      border: 1px solid rgba(99, 179, 237, 0.25);
+      border-radius: 6px;
+      padding: 2px 7px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .btn-fetch-models:hover:not(:disabled) {
+      background: rgba(99, 179, 237, 0.2);
+      border-color: rgba(99, 179, 237, 0.45);
+      color: #fff;
+    }
+    .btn-fetch-models:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
     .badge {
       font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
@@ -167,7 +208,8 @@
       position: absolute; left: 0; right: 0; top: calc(100% + 4px);
       background: #161b27; border: 1px solid rgba(99,179,237,0.2);
       border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);
-      padding: 4px; z-index: 10; display: none; overflow: hidden;
+      padding: 4px; z-index: 10; display: none; overflow-y: auto;
+      max-height: 200px; scrollbar-width: thin;
     }
     .ai-select.open .ai-select-drop {
       display: block; animation: ai-drop-in 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards;
@@ -196,6 +238,7 @@
     <h1>AI 划词翻译</h1>
     <p>OpenAI 兼容接口 · 自定义配置</p>
   </div>
+  <div class="hd-status" id="save-status">✓ 已自动保存</div>
 </div>
 
 <div class="bd">
@@ -229,9 +272,13 @@
   </div>
 
   <div class="field">
-    <label>模型名称</label>
+    <div class="field-label-row">
+      <label>模型名称</label>
+      <button type="button" class="btn-fetch-models" id="btn-fetch-models">⚡ 获取模型列表</button>
+    </div>
     <input type="text" id="model" placeholder="gpt-4o-mini" />
-    <div class="hint">填入模型 ID，如 gpt-4o-mini · deepseek-chat · qwen-plus 等</div>
+    <div id="model-select-container" style="display:none; margin-top:4px;"></div>
+    <div class="hint">可直接输入模型 ID，或点击右上方「获取模型列表」直接选择</div>
   </div>
 
   <div class="divider"></div>
@@ -263,7 +310,7 @@
   </div>
 
   <div class="field">
-    <label>翻译目标语言</label>
+    <label>默认翻译目标语言</label>
     <div id="targetLang-mount"></div>
   </div>
 
@@ -298,18 +345,17 @@
   <div class="field">
     <label>面板尺寸 <span class="badge">PX</span></label>
     <div style="display:flex;gap:8px;">
-      <input type="number" id="panelWidth" placeholder="700" min="400" max="1200" style="flex:1;" />
+      <input type="number" id="panelWidth" placeholder="680" min="400" max="1200" style="flex:1;" />
       <span style="color:#4a5568;align-self:center;">×</span>
-      <input type="number" id="panelHeight" placeholder="230" min="80" max="800" style="flex:1;" />
+      <input type="number" id="panelHeight" placeholder="160" min="80" max="500" style="flex:1;" />
     </div>
-    <div class="hint">宽度 × 输入框高度（px），保存后下次打开面板生效</div>
+    <div class="hint">面板宽度 × 单个输入框高度（px），实时保存</div>
   </div>
-
-  <button class="btn-save" id="btn-save">保存设置</button>
 
 </div>
 
 <div class="toast" id="toast"></div>
+<script src="languages.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>
