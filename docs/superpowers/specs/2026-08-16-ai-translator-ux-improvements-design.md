@@ -8,19 +8,22 @@
 
 ## 1. Objectives & Overview
 
-This specification details 5 key improvements to the `ai-translator` Chrome extension and project configuration:
+This specification details 6 key improvements to the `ai-translator` Chrome extension and project configuration:
 1. **Git Ignore Configuration**: Ignore irrelevant development/AI tool artifacts (`.claude/`, `.superpowers/`, etc.).
-2. **AI Translation Panel Modern Vertical Layout & Auto-Detect Source Language**:
+2. **Unified & Expanded Languages Definition (`src/languages.js`)**:
+   - Extract a centralized `SUPPORTED_LANGUAGES` dataset shared across `background.js` (via `importScripts`), `content.js` (via `manifest.json content_scripts`), and `popup.html`.
+   - Expand supported target languages to include Chinese (Simplified/Traditional), English, Japanese, Korean, French, German, Spanish, Russian, Portuguese, Italian, Arabic, Vietnamese, Thai, Indonesian, Hindi, Dutch, Polish, Turkish, etc.
+3. **AI Translation Panel Modern Vertical Layout & Auto-Detect Source Language**:
    - Redesign translation prompt to always auto-detect source language and output pure translation in the requested target language.
    - Restructure the translation panel (`Alt+Shift+T`) into a modern stacked (vertical) layout:
      - Top box: Source input textarea, with floating mini "Clear/Copy" buttons at bottom-left and a floating "⚡ 翻译" button at bottom-right.
      - Bottom box: Target translation textarea, with floating mini "Clear/Copy" buttons at bottom-left and a floating "Target Language" select at bottom-right.
-3. **Card Dismissal & Race Condition Handling**:
+4. **Card Dismissal & Race Condition Handling**:
    - Prevent the floating selection translation card from popping up if the user dismissed or closed it while it was in the loading state.
-4. **Popup Configuration Instant Auto-Save**:
+5. **Popup Configuration Instant Auto-Save**:
    - Make all settings in `popup.html` save immediately on input/change to `chrome.storage.sync`.
    - Remove the manual "保存设置" button and provide a subtle auto-save status indicator.
-5. **Dynamic Model Fetching**:
+6. **Dynamic Model Fetching**:
    - Add a "获取模型列表" button next to the model input in popup settings.
    - Fetch models from `{apiBase}/v1/models` using the configured API Key via the background service worker.
    - Display a selectable dropdown list while keeping the option for manual input.
@@ -36,6 +39,41 @@ Add:
 .claude/
 .superpowers/
 ```
+
+### 2.2 Shared Languages Definition (`src/languages.js`)
+Create a single source of truth for languages used by background worker, content script, and popup:
+```javascript
+// src/languages.js
+const SUPPORTED_LANGUAGES = [
+  { code: 'zh-CN', name: '简体中文', flag: '🇨🇳' },
+  { code: 'zh-TW', name: '繁体中文', flag: '🇹🇼' },
+  { code: 'en',    name: '英语',     flag: '🇺🇸' },
+  { code: 'ja',    name: '日语',     flag: '🇯🇵' },
+  { code: 'ko',    name: '韩语',     flag: '🇰🇷' },
+  { code: 'fr',    name: '法语',     flag: '🇫🇷' },
+  { code: 'de',    name: '德语',     flag: '🇩🇪' },
+  { code: 'es',    name: '西班牙语', flag: '🇪🇸' },
+  { code: 'ru',    name: '俄语',     flag: '🇷🇺' },
+  { code: 'pt',    name: '葡萄牙语', flag: '🇵🇹' },
+  { code: 'it',    name: '意大利语', flag: '🇮🇹' },
+  { code: 'ar',    name: '阿拉伯语', flag: '🇸🇦' },
+  { code: 'vi',    name: '越南语',   flag: '🇻🇳' },
+  { code: 'th',    name: '泰语',     flag: '🇹🇭' },
+  { code: 'id',    name: '印尼语',   flag: '🇮🇩' },
+  { code: 'hi',    name: '印地语',   flag: '🇮🇳' },
+  { code: 'nl',    name: '荷兰语',   flag: '🇳🇱' },
+  { code: 'pl',    name: '波兰语',   flag: '🇵🇱' },
+  { code: 'tr',    name: '土耳其语', flag: '🇹🇷' },
+];
+
+function getLanguageName(code) {
+  const item = SUPPORTED_LANGUAGES.find(l => l.code === code);
+  return item ? item.name : code;
+}
+```
+- In `manifest.json`: Add `"src/languages.js"` before `"src/content.js"`.
+- In `background.js`: Add `importScripts('languages.js');`.
+- In `popup.html`: Add `<script src="languages.js"></script>` before `popup.js`.
 
 ### 2.2 AI Prompt & Background API Routing (`src/background.js`)
 
