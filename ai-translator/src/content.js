@@ -4,6 +4,7 @@
 
   let selectionText = '';
   let selectionRect = null;
+  let activeCardRequestId = 0; // 用于追踪划词翻译请求生命周期，避免取消后仍弹出卡片
 
   // ─── 读取「关闭方式」设置，决定是否绑定滚动关闭 ─────────────
   // dismissOnScroll: true = 滚动即关闭（默认）; false = 仅点击其他地方关闭
@@ -93,12 +94,15 @@
     });
   }
 
-  // ─── 触发翻译 ────────────────────────────────────────────────
+  // ─── 触发划词翻译 ────────────────────────────────────────────
   function doTranslate() {
     removeEl('ai-tr-btn');
+    const reqId = ++activeCardRequestId;
     showCard('loading');
 
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+      if (reqId !== activeCardRequestId) return; // 已被用户取消
+
       if (!settings?.apiKey) {
         showCard('error', '请先点击插件图标，填写 API Key 并保存。', true);
         return;
@@ -107,6 +111,8 @@
       chrome.runtime.sendMessage(
         { type: 'TRANSLATE', payload: { text: selectionText, settings } },
         (res) => {
+          if (reqId !== activeCardRequestId) return; // 已被用户取消，不再弹出
+
           if (chrome.runtime.lastError) {
             showCard('error', '插件通信异常，请刷新页面后重试。');
             return;
@@ -230,9 +236,6 @@
   }
 
   // ─── 结果卡片自动调整尺寸 ────────────────────────────────────
-  // 宽高随内容自适应（fit-content）；最大高度 = 视口高度。
-  // 若内容超出最大高度，则自动加宽以压低高度，直到不超出；
-  // 即便最宽也放不下时，结果区内部滚动兜底。
   function autoSizeCard(card) {
     const M = 16;
     const maxH = window.innerHeight - M * 2;
@@ -248,7 +251,7 @@
     card.style.maxWidth = comfyW + 'px';
     if (card.offsetHeight <= maxH) return; // 未超高，fit-content 即可
 
-    // 超高 → 二分加宽（宽度越大，文字行数越少，高度越小）
+    // 超高 → 二分加宽
     let lo = comfyW, hi = absMaxW, best = absMaxW;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
@@ -285,7 +288,6 @@
     const vw = window.innerWidth, vh = window.innerHeight;
     const GAP = 8;
 
-    // 先附加到 DOM 获取实际尺寸
     el.style.visibility = 'hidden';
     el.style.position = 'fixed';
     document.body.appendChild(el);
@@ -295,18 +297,15 @@
     el.style.visibility = '';
     el.style.position = '';
 
-    // 使用 viewport 坐标（position: fixed），避免模态框内滚动偏移问题
     let left = rect.left;
     let top  = rect.bottom + GAP;
 
-    // 右侧溢出 → 左移
     if (left + elW > vw - 8) left = vw - elW - 8;
     if (left < 4) left = 4;
 
-    // 下方溢出 → 显示在选区上方
     if (rect.bottom + elH + GAP > vh) {
       top = rect.top - elH - GAP;
-      if (top < 4) top = rect.bottom + GAP; // 上方也不够就还是放下面
+      if (top < 4) top = rect.bottom + GAP;
     }
 
     el.style.left = left + 'px';
@@ -314,8 +313,6 @@
   }
 
   // ─── 挂载点 ────────────────────────────────────────────────────
-  // 如果页面有打开的 <dialog>（showModal），元素必须挂到 dialog 内部，
-  // 否则会被 dialog 的 top-layer ::backdrop 遮挡（top layer 无视 z-index）
   function getMountTarget() {
     const dialog = document.querySelector('dialog[open]');
     return dialog || document.body;
@@ -323,7 +320,12 @@
 
   // ─── 工具 ────────────────────────────────────────────────────
   function removeEl(id) { document.getElementById(id)?.remove(); }
-  function closeAll() { removeEl('ai-tr-btn'); removeEl('ai-tr-card'); }
+  function closeAll() {
+    activeCardRequestId = 0; // 重置请求 ID，放弃等待中的响应
+    removeEl('ai-tr-btn');
+    removeEl('ai-tr-card');
+  }
+
   function esc(s) {
     return String(s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -345,6 +347,7 @@
     panelVisible = true;
     wrap.classList.remove('closing');
     wrap.style.display = '';
+
     // 应用面板模式
     chrome.storage.sync.get('panelMode', (d) => {
       const mode = d.panelMode || 'modal';
@@ -352,7 +355,7 @@
         wrap.classList.add('ai-panel-floating');
         const inner = wrap.querySelector('.ai-panel-wrap');
         const w = inner.offsetWidth || 680;
-        const h = inner.offsetHeight || 400;
+        const h = inner.offsetHeight || 440;
         wrap.style.left = Math.max(0, (window.innerWidth - w) / 2) + 'px';
         wrap.style.top = Math.max(0, (window.innerHeight - h) / 2) + 'px';
       } else {
@@ -361,20 +364,16 @@
         wrap.style.top = '';
       }
     });
-    // 加载默认语言设置
+
+    // 加载目标语言设置
     chrome.storage.sync.get('targetLang', (d) => {
-      const src = wrap.querySelector('#ai-panel-src-lang');
       const tgt = wrap.querySelector('#ai-panel-tgt-lang');
-      if (src.value !== 'en' || !src.dataset._inited) {
-        src.value = 'en';
-        src.dataset._inited = '1';
-      }
-      if (!tgt.dataset._inited) {
-        tgt.value = d.targetLang || 'zh-CN';
-        tgt.dataset._inited = '1';
+      if (tgt && d.targetLang) {
+        tgt.value = d.targetLang;
       }
     });
-    // 聚焦源语言输入框
+
+    // 聚焦输入源文本框
     setTimeout(() => wrap.querySelector('#ai-panel-src-text')?.focus(), 100);
   }
 
@@ -400,7 +399,7 @@
     const optHtml = langList.map(([v, l]) =>
       `<div class="ai-select-opt${v === defaultVal ? ' selected' : ''}" data-value="${v}">${l}</div>`
     ).join('');
-    const initLabel = langList.find(([v]) => v === defaultVal)?.[1] || langList[0][1];
+    const initLabel = langList.find(([v]) => v === defaultVal)?.[1] || langList[0]?.[1] || defaultVal;
 
     el.innerHTML = `
       <button class="ai-select-btn" type="button">
@@ -414,7 +413,8 @@
       get() { return _value; },
       set(v) {
         _value = v;
-        const label = langList.find(([lv]) => lv === v)?.[1] || v;
+        const item = langList.find(([lv]) => lv === v);
+        const label = item ? item[1] : v;
         el.querySelector('.ai-select-label').textContent = label;
         el.querySelectorAll('.ai-select-opt').forEach(o => {
           o.classList.toggle('selected', o.dataset.value === v);
@@ -435,6 +435,8 @@
         e.preventDefault(); // prevent blur on textarea
         el.value = opt.dataset.value;
         el.classList.remove('open');
+        // 保存当前选择的目标语言为默认值
+        chrome.storage.sync.set({ targetLang: el.value });
       });
     });
 
@@ -442,10 +444,18 @@
   }
 
   function buildPanel() {
-    const langList = [
-      ['zh-CN','简体中文'], ['zh-TW','繁体中文'], ['en','英语'],
-      ['ja','日语'], ['ko','韩语'], ['fr','法语'], ['de','德语'], ['es','西班牙语'],
-    ];
+    // 语言列表数据源
+    const langList = (typeof SUPPORTED_LANGUAGES !== 'undefined' ? SUPPORTED_LANGUAGES : [
+      { code: 'zh-CN', name: '简体中文', flag: '🇨🇳' },
+      { code: 'zh-TW', name: '繁体中文', flag: '🇹🇼' },
+      { code: 'en',    name: '英语',     flag: '🇺🇸' },
+      { code: 'ja',    name: '日语',     flag: '🇯🇵' },
+      { code: 'ko',    name: '韩语',     flag: '🇰🇷' },
+      { code: 'fr',    name: '法语',     flag: '🇫🇷' },
+      { code: 'de',    name: '德语',     flag: '🇩🇪' },
+      { code: 'es',    name: '西班牙语', flag: '🇪🇸' },
+      { code: 'ru',    name: '俄语',     flag: '🇷🇺' },
+    ]).map(l => [l.code, `${l.flag ? l.flag + ' ' : ''}${l.name}`]);
 
     const div = document.createElement('div');
     div.id = 'ai-tr-panel';
@@ -454,43 +464,46 @@
       <div class="ai-panel-bg"></div>
       <div class="ai-panel-wrap">
         <div class="ai-panel-hd">
-          <span class="ai-panel-title">AI 翻译面板</span>
-          <span class="ai-panel-shortcut">Alt+Shift+T</span>
-          <button class="ai-panel-close" id="ai-panel-close-title">×</button>
+          <div class="ai-panel-hd-left">
+            <div class="ai-panel-logo">AI</div>
+            <span class="ai-panel-title">AI 翻译面板</span>
+            <span class="ai-panel-badge">自动识别源语言</span>
+          </div>
+          <div class="ai-panel-hd-right">
+            <span class="ai-panel-shortcut"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 翻译</span>
+            <button class="ai-panel-close" id="ai-panel-close-title">×</button>
+          </div>
         </div>
         <div class="ai-panel-bd">
-          <div class="ai-panel-langs">
-            <div id="ai-panel-src-lang"></div>
-            <button id="ai-panel-swap" title="互换语言">⇄</button>
-            <div id="ai-panel-tgt-lang"></div>
-          </div>
-          <div class="ai-panel-editors">
-            <div class="ai-panel-col">
-              <textarea id="ai-panel-src-text" placeholder="输入要翻译的文本..." spellcheck="false"></textarea>
-            </div>
-            <div class="ai-panel-mid">
-              <div class="ai-translate-btn-group">
-                <button class="ai-translate-dir ai-translate-to-left" title="翻译到左侧 (←)">◀</button>
-                <button id="ai-panel-translate">
+          <!-- 上方：输入源文本区 -->
+          <div class="ai-panel-box ai-source-box">
+            <textarea id="ai-panel-src-text" placeholder="输入要翻译的文本..." spellcheck="false"></textarea>
+            <div class="ai-panel-box-toolbar">
+              <div class="ai-box-actions-left">
+                <button class="ai-mini-btn" data-action="clear" data-side="src" title="清空">清空</button>
+                <button class="ai-mini-btn" data-action="copy" data-side="src" title="复制">复制</button>
+              </div>
+              <div class="ai-box-actions-right">
+                <button id="ai-panel-translate" class="ai-btn-translate-primary" title="快捷键 Ctrl+Enter">
+                  <span class="btn-icon">⚡</span>
                   <span class="btn-text">翻译</span>
                   <span class="btn-spinner"></span>
                 </button>
-                <button class="ai-translate-dir ai-translate-to-right" title="翻译到右侧 (→)">▶</button>
               </div>
             </div>
-            <div class="ai-panel-col">
-              <textarea id="ai-panel-tgt-text" placeholder="翻译结果..." spellcheck="false"></textarea>
-            </div>
           </div>
-          <div class="ai-panel-footers">
-            <div class="ai-panel-tbar">
-              <button class="ai-tbar-btn" data-action="clear" data-side="src" title="清空">清空</button>
-              <button class="ai-tbar-btn" data-action="copy" data-side="src" title="复制">复制</button>
-            </div>
-            <div class="ai-panel-mid-spacer"></div>
-            <div class="ai-panel-tbar">
-              <button class="ai-tbar-btn" data-action="clear" data-side="tgt" title="清空">清空</button>
-              <button class="ai-tbar-btn" data-action="copy" data-side="tgt" title="复制">复制</button>
+
+          <!-- 下方：目标语言翻译结果区 -->
+          <div class="ai-panel-box ai-target-box">
+            <textarea id="ai-panel-tgt-text" placeholder="翻译结果..." spellcheck="false"></textarea>
+            <div class="ai-panel-box-toolbar">
+              <div class="ai-box-actions-left">
+                <button class="ai-mini-btn" data-action="clear" data-side="tgt" title="清空">清空</button>
+                <button class="ai-mini-btn" data-action="copy" data-side="tgt" title="复制">复制</button>
+              </div>
+              <div class="ai-box-actions-right">
+                <div id="ai-panel-tgt-lang-mount"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -499,59 +512,28 @@
 
     getMountTarget().appendChild(div);
 
-    // 替换为自定义下拉
-    const srcPlaceholder = div.querySelector('#ai-panel-src-lang');
-    const tgtPlaceholder = div.querySelector('#ai-panel-tgt-lang');
-    const srcSelect = createSelect(langList, 'en', 'ai-panel-src-lang');
+    // 挂载目标语言自定义下拉
+    const tgtMount = div.querySelector('#ai-panel-tgt-lang-mount');
     const tgtSelect = createSelect(langList, 'zh-CN', 'ai-panel-tgt-lang');
-    srcPlaceholder.replaceWith(srcSelect);
-    tgtPlaceholder.replaceWith(tgtSelect);
+    tgtMount.replaceWith(tgtSelect);
+
+    const srcText = div.querySelector('#ai-panel-src-text');
+    const tgtText = div.querySelector('#ai-panel-tgt-text');
 
     // 关闭
     const close = () => closePanel();
     div.querySelector('.ai-panel-bg').addEventListener('click', close);
     div.querySelector('#ai-panel-close-title').addEventListener('click', close);
 
-    // 互换语言
-    const srcText = div.querySelector('#ai-panel-src-text');
-    const tgtText = div.querySelector('#ai-panel-tgt-text');
+    // 翻译按钮
+    div.querySelector('#ai-panel-translate').addEventListener('click', doPanelTranslate);
 
-    // 记录最近聚焦的输入框，用于智能方向判断（两边都有内容时）
-    let lastFocused = srcText;
-    srcText.addEventListener('focus', () => { lastFocused = srcText; });
-    tgtText.addEventListener('focus', () => { lastFocused = tgtText; });
-
-    const swapBtn = div.querySelector('#ai-panel-swap');
-    swapBtn.addEventListener('click', () => {
-      const srcLang = div.querySelector('#ai-panel-src-lang');
-      const tgtLang = div.querySelector('#ai-panel-tgt-lang');
-      [srcLang.value, tgtLang.value] = [tgtLang.value, srcLang.value];
-      [srcText.value, tgtText.value] = [tgtText.value, srcText.value];
-      swapBtn.classList.add('spinning');
-      setTimeout(() => swapBtn.classList.remove('spinning'), 250);
-    });
-
-    // 方向按钮：强制指定翻译方向
-    div.querySelector('.ai-translate-to-right').addEventListener('click', (e) => {
-      e.stopPropagation();
-      doPanelTranslate('right');
-    });
-    div.querySelector('.ai-translate-to-left').addEventListener('click', (e) => {
-      e.stopPropagation();
-      doPanelTranslate('left');
-    });
-
-    // 翻译按钮：智能判断方向
-    div.querySelector('#ai-panel-translate').addEventListener('click', () => {
-      doPanelTranslate('auto');
-    });
-
-    // Ctrl/Cmd+Enter 快捷键（智能判断方向）
+    // Ctrl/Cmd+Enter 快捷键触发翻译
     srcText.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('auto');
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate();
     });
     tgtText.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate('auto');
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doPanelTranslate();
     });
 
     // Escape 关闭
@@ -561,15 +543,15 @@
 
     // 应用用户配置的面板尺寸
     chrome.storage.sync.get(['panelWidth', 'panelHeight'], (d) => {
-      const w = d.panelWidth || 700;
-      const h = d.panelHeight || 230;
+      const w = d.panelWidth || 680;
+      const h = d.panelHeight || 160; // 单个输入框高度
       div.querySelector('.ai-panel-wrap').style.width = w + 'px';
       srcText.style.height = h + 'px';
       tgtText.style.height = h + 'px';
     });
 
     // 清空 / 复制按钮
-    div.querySelectorAll('.ai-tbar-btn').forEach(btn => {
+    div.querySelectorAll('.ai-mini-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const side = btn.dataset.side;
         const action = btn.dataset.action;
@@ -581,76 +563,59 @@
           if (!tb.value) return;
           navigator.clipboard.writeText(tb.value).then(() => {
             const orig = btn.textContent;
-            btn.textContent = '✓';
+            btn.textContent = '已复制 ✓';
             setTimeout(() => { btn.textContent = orig; }, 1500);
           });
         }
       });
     });
 
-    // ── 翻译（direction: 'right' = 左→右, 'left' = 右→左）──
-    function doPanelTranslate(direction) {
+    // ── 翻译逻辑 ──
+    function doPanelTranslate() {
       const btn = div.querySelector('#ai-panel-translate');
-      if (btn.disabled) return; // 防抖：翻译中禁止重复触发
+      if (btn.disabled) return;
 
-      // 智能方向：哪个框有内容、对向框为空，就翻到对向语言
-      if (direction === 'auto') {
-        const srcHas = !!srcText.value.trim();
-        const tgtHas = !!tgtText.value.trim();
-        if (srcHas && !tgtHas) direction = 'right';
-        else if (tgtHas && !srcHas) direction = 'left';
-        else if (srcHas && tgtHas) direction = lastFocused === tgtText ? 'left' : 'right';
-        else return; // 两边都空，无内容可译
+      const text = srcText.value.trim();
+      if (!text) {
+        srcText.focus();
+        return;
       }
 
-      let text, sourceLang, targetLang, resultBox;
+      const targetLang = div.querySelector('#ai-panel-tgt-lang')?.value || 'zh-CN';
 
-      if (direction === 'left') {
-        // 右 → 左
-        text = tgtText.value.trim();
-        if (!text) return;
-        sourceLang = div.querySelector('#ai-panel-tgt-lang').value;
-        targetLang = div.querySelector('#ai-panel-src-lang').value;
-        resultBox = srcText;
-      } else {
-        // 左 → 右（默认）
-        text = srcText.value.trim();
-        if (!text) return;
-        sourceLang = div.querySelector('#ai-panel-src-lang').value;
-        targetLang = div.querySelector('#ai-panel-tgt-lang').value;
-        resultBox = tgtText;
-      }
-
+      const btnIcon = btn.querySelector('.btn-icon');
       const btnText = btn.querySelector('.btn-text');
       const spinner = btn.querySelector('.btn-spinner');
-      const btnGroup = div.querySelector('.ai-translate-btn-group');
-      btnGroup.classList.add('is-translating');
-      btnText.style.display = 'none';
-      spinner.style.display = 'inline-block';
+
+      btn.classList.add('is-translating');
+      if (btnIcon) btnIcon.style.display = 'none';
+      if (btnText) btnText.textContent = '翻译中';
+      if (spinner) spinner.style.display = 'inline-block';
       btn.disabled = true;
 
       function finish() {
-        btnGroup.classList.remove('is-translating');
-        btnText.style.display = '';
-        spinner.style.display = 'none';
+        btn.classList.remove('is-translating');
+        if (btnIcon) btnIcon.style.display = '';
+        if (btnText) btnText.textContent = '翻译';
+        if (spinner) spinner.style.display = 'none';
         btn.disabled = false;
       }
 
       chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
         if (!settings?.apiKey) {
           finish();
-          resultBox.value = '请先点击插件图标配置 API Key';
+          tgtText.value = '请先点击插件图标配置 API Key';
           return;
         }
 
         chrome.runtime.sendMessage(
-          { type: 'TRANSLATE', payload: { text, settings, sourceLang, targetLang } },
+          { type: 'TRANSLATE', payload: { text, settings, targetLang } },
           (res) => {
             finish();
             if (res?.success) {
-              resultBox.value = res.data;
+              tgtText.value = res.data;
             } else {
-              resultBox.value = '翻译失败：' + (res?.error || '未知错误');
+              tgtText.value = '翻译失败：' + (res?.error || '未知错误');
             }
           }
         );
@@ -685,3 +650,4 @@
   }
 
 })();
+
