@@ -558,16 +558,116 @@
   animation: ai-spin 0.65s linear infinite;
 }
 
-/* 自定义目标语言选择下拉 (嵌入工具栏中) */
+/* 自定义下拉组件基础样式 */
+.ai-select {
+  position: relative;
+  width: 100%;
+}
+
+.ai-select-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: #161b27;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #e2e8f0;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  box-sizing: border-box;
+}
+
+.ai-select-btn:hover {
+  border-color: rgba(99, 179, 237, 0.25);
+}
+
+.ai-select.open .ai-select-btn {
+  border-color: rgba(99, 179, 237, 0.5);
+  box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.08);
+  transform: translateY(-1px);
+}
+
+.ai-select-arrow {
+  font-size: 10px;
+  color: #4a5568;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+}
+
+.ai-select.open .ai-select-arrow {
+  transform: rotate(180deg);
+  color: #90cdf4;
+}
+
+.ai-select-drop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #161b27;
+  border: 1px solid rgba(99, 179, 237, 0.2);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  z-index: 100;
+  display: none;
+  overflow-y: auto;
+  max-height: 220px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 179, 237, 0.3) transparent;
+  box-sizing: border-box;
+}
+
+.ai-select.open .ai-select-drop {
+  display: block;
+  animation: ai-drop-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes ai-drop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ai-select-opt {
+  padding: 7px 10px;
+  border-radius: 7px;
+  color: #c5d0e0;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, padding-left 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-select-opt:hover {
+  background: rgba(99, 179, 237, 0.1);
+  color: #90cdf4;
+  padding-left: 14px;
+}
+
+.ai-select-opt.selected {
+  background: rgba(99, 179, 237, 0.08);
+  color: #63b3ed;
+  font-weight: 600;
+}
+
+/* 自定义目标语言选择下拉 (嵌入面板工具栏中) */
 #ai-panel-tgt-lang {
-  width: 130px;
+  width: 140px;
 }
 
 #ai-panel-tgt-lang .ai-select-btn {
   padding: 4px 9px;
   font-size: 11px;
   background: rgba(13, 17, 23, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 7px;
   backdrop-filter: blur(4px);
 }
@@ -577,6 +677,7 @@
   overflow-y: auto;
   bottom: calc(100% + 4px);
   top: auto;
+  z-index: 1000;
 }
 
 /* 浮动模式：无遮罩，可拖动，可选中页面文字 */
