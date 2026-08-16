@@ -365,11 +365,11 @@
       }
     });
 
-    // 加载目标语言设置
-    chrome.storage.sync.get('targetLang', (d) => {
+    // 加载翻译面板专属目标语言设置（独立于划词翻译，互不影响）
+    chrome.storage.sync.get('panelTargetLang', (d) => {
       const tgt = wrap.querySelector('#ai-panel-tgt-lang');
-      if (tgt && d.targetLang) {
-        tgt.value = d.targetLang;
+      if (tgt && d.panelTargetLang) {
+        tgt.value = d.panelTargetLang;
       }
     });
 
@@ -435,8 +435,8 @@
         e.preventDefault(); // prevent blur on textarea
         el.value = opt.dataset.value;
         el.classList.remove('open');
-        // 保存当前选择的目标语言为默认值
-        chrome.storage.sync.set({ targetLang: el.value });
+        // 保存当前面板选择的目标语言（独立 key: panelTargetLang，不影响设置面板中的 targetLang）
+        chrome.storage.sync.set({ panelTargetLang: el.value });
       });
     });
 

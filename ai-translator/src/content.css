@@ -493,16 +493,22 @@
 
 /* 轻量级迷你操作按钮 */
 .ai-mini-btn {
+  height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   font-size: 11px;
   color: #718096;
   background: rgba(13, 17, 23, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  padding: 3px 8px;
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
   backdrop-filter: blur(4px);
+  box-sizing: border-box;
 }
 
 .ai-mini-btn:hover {
@@ -513,10 +519,13 @@
 
 /* 主翻译按钮 */
 .ai-btn-translate-primary {
+  height: 28px;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  line-height: 1;
   gap: 5px;
-  padding: 6px 14px;
   background: linear-gradient(135deg, #2b6cb0, #2c5282);
   border: 1px solid rgba(99, 179, 237, 0.35);
   border-radius: 8px;
@@ -527,6 +536,7 @@
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow: 0 2px 10px rgba(43, 108, 176, 0.35);
+  box-sizing: border-box;
 }
 
 .ai-btn-translate-primary:hover:not(:disabled) {
@@ -546,6 +556,11 @@
 
 .ai-btn-translate-primary .btn-icon {
   font-size: 11px;
+  line-height: 1;
+}
+
+.ai-btn-translate-primary .btn-text {
+  line-height: 1;
 }
 
 .ai-btn-translate-primary .btn-spinner {
@@ -577,10 +592,20 @@
   color: #e2e8f0;
   font-size: 12px;
   font-family: inherit;
+  line-height: 1;
   cursor: pointer;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
   box-sizing: border-box;
+}
+
+.ai-select-label {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ai-select-btn:hover {
@@ -594,6 +619,9 @@
 }
 
 .ai-select-arrow {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
   font-size: 10px;
   color: #4a5568;
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -639,6 +667,7 @@
   border-radius: 7px;
   color: #c5d0e0;
   font-size: 12px;
+  line-height: 1.2;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, padding-left 0.2s;
   white-space: nowrap;
@@ -664,18 +693,24 @@
 }
 
 #ai-panel-tgt-lang .ai-select-btn {
-  padding: 4px 9px;
+  height: 28px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 11px;
+  line-height: 1;
   background: rgba(13, 17, 23, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 7px;
   backdrop-filter: blur(4px);
+  box-sizing: border-box;
 }
 
 #ai-panel-tgt-lang .ai-select-drop {
   max-height: 200px;
   overflow-y: auto;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + 6px);
   top: auto;
   z-index: 1000;
 }
