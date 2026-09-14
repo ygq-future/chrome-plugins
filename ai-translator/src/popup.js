@@ -39,8 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (d.panelWidth)  document.getElementById('panelWidth').value  = d.panelWidth;
       if (d.panelHeight) document.getElementById('panelHeight').value = d.panelHeight;
 
-      // dismissOnScroll 默认 true（滚动关闭）
-      const scrollMode = d.dismissOnScroll !== false ? 'scroll' : 'click';
+      // dismissOnScroll 默认 false（点击其他处关闭）
+      const scrollMode = d.dismissOnScroll === true ? 'scroll' : 'click';
       const dismissRadios = document.querySelectorAll('input[name="dismissMode"]');
       dismissRadios.forEach(r => { r.checked = r.value === scrollMode; });
 
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveSettings() {
     if (isLoading) return;
     const selected = document.querySelector('input[name="dismissMode"]:checked');
-    const dismissOnScroll = !selected || selected.value === 'scroll';
+    const dismissOnScroll = selected ? selected.value === 'scroll' : false;
 
     const modeSelected = document.querySelector('input[name="panelMode"]:checked');
     const panelMode = modeSelected ? modeSelected.value : 'modal';

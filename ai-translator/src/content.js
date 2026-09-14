@@ -7,8 +7,8 @@
   let activeCardRequestId = 0; // 用于追踪划词翻译请求生命周期，避免取消后仍弹出卡片
 
   // ─── 读取「关闭方式」设置，决定是否绑定滚动关闭 ─────────────
-  // dismissOnScroll: true = 滚动即关闭（默认）; false = 仅点击其他地方关闭
-  let dismissOnScroll = true;
+  // dismissOnScroll: true = 滚动即关闭; false = 仅点击其他地方关闭（默认）
+  let dismissOnScroll = false;
 
   function applyScrollSetting(val) {
     dismissOnScroll = val;
@@ -23,14 +23,14 @@
 
   // 初始化时读取设置
   chrome.storage.sync.get('dismissOnScroll', (d) => {
-    // 未设置过则默认 true（滚动关闭）
-    applyScrollSetting(d.dismissOnScroll !== false);
+    // 未设置过则默认 false（点击其他地方关闭）
+    applyScrollSetting(d.dismissOnScroll === true);
   });
 
   // 设置变更时实时生效（用户在 popup 改完不用刷新页面）
   chrome.storage.onChanged.addListener((changes) => {
     if ('dismissOnScroll' in changes) {
-      applyScrollSetting(changes.dismissOnScroll.newValue !== false);
+      applyScrollSetting(changes.dismissOnScroll.newValue === true);
     }
   });
 
