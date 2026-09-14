@@ -31,33 +31,54 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── 加载已保存的设置 ──
+  let isLoading = true;
   chrome.storage.sync.get(['apiBase','apiKey','model','targetLang','dismissOnScroll','panelMode','panelWidth','panelHeight'], (d) => {
-    if (d.apiBase)     document.getElementById('apiBase').value    = d.apiBase;
-    if (d.apiKey)      document.getElementById('apiKey').value     = d.apiKey;
-    if (d.model)       modelSelect.value                           = d.model;
-    if (d.targetLang)  tgtSelect.value                             = d.targetLang;
-    if (d.panelWidth)  document.getElementById('panelWidth').value  = d.panelWidth;
-    if (d.panelHeight) document.getElementById('panelHeight').value = d.panelHeight;
+    try {
+      if (d.apiBase)     document.getElementById('apiBase').value    = d.apiBase;
+      if (d.apiKey)      document.getElementById('apiKey').value     = d.apiKey;
+      if (d.panelWidth)  document.getElementById('panelWidth').value  = d.panelWidth;
+      if (d.panelHeight) document.getElementById('panelHeight').value = d.panelHeight;
 
-    // dismissOnScroll 默认 true（滚动关闭）
-    const scrollMode = d.dismissOnScroll !== false ? 'scroll' : 'click';
-    const dismissRadios = document.querySelectorAll('input[name="dismissMode"]');
-    dismissRadios.forEach(r => { r.checked = r.value === scrollMode; });
+      // dismissOnScroll 默认 true（滚动关闭）
+      const scrollMode = d.dismissOnScroll !== false ? 'scroll' : 'click';
+      const dismissRadios = document.querySelectorAll('input[name="dismissMode"]');
+      dismissRadios.forEach(r => { r.checked = r.value === scrollMode; });
 
-    // panelMode 默认 modal
-    const panelMode = d.panelMode || 'modal';
-    const modeRadios = document.querySelectorAll('input[name="panelMode"]');
-    modeRadios.forEach(r => { r.checked = r.value === panelMode; });
+      // panelMode 默认 modal
+      const panelMode = d.panelMode || 'modal';
+      const modeRadios = document.querySelectorAll('input[name="panelMode"]');
+      modeRadios.forEach(r => { r.checked = r.value === panelMode; });
+
+      if (d.model)       modelSelect.value                           = d.model;
+      if (d.targetLang)  tgtSelect.value                             = d.targetLang;
+    } finally {
+      isLoading = false;
+    }
   });
 
   // ── 自动保存（输入即生效） ──
   let saveTimer = null;
   function scheduleSave() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveSettings, 150);
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      saveSettings();
+    }, 150);
   }
 
+  function flushSave() {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      saveSettings();
+    }
+  }
+
+  window.addEventListener('pagehide', flushSave);
+  window.addEventListener('beforeunload', flushSave);
+
   function saveSettings() {
+    if (isLoading) return;
     const selected = document.querySelector('input[name="dismissMode"]:checked');
     const dismissOnScroll = !selected || selected.value === 'scroll';
 
@@ -200,7 +221,7 @@ function createSelect(initialList, defaultVal, id, onChange, placeholder = '请�
     el.querySelectorAll('.ai-select-opt').forEach(opt => {
       opt.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        el.value = opt.dataset.value;
+        setValue(opt.dataset.value, true);
         el.classList.remove('open');
       });
     });
@@ -234,16 +255,24 @@ function createSelect(initialList, defaultVal, id, onChange, placeholder = '请�
   updateLabel();
   renderDropdown();
 
+  function setValue(v, triggerChange = false) {
+    _value = v || '';
+    if (v && !_list.some(([lv]) => lv === v)) {
+      _list.unshift([v, v]);
+    }
+    updateLabel();
+    renderDropdown();
+    if (triggerChange && typeof onChange === 'function') {
+      onChange(_value);
+    }
+  }
+
+  el.setValue = setValue;
+
   Object.defineProperty(el, 'value', {
     get() { return _value; },
     set(v) {
-      _value = v || '';
-      if (v && !_list.some(([lv]) => lv === v)) {
-        _list.unshift([v, v]);
-      }
-      updateLabel();
-      renderDropdown();
-      if (typeof onChange === 'function') onChange(_value);
+      setValue(v, false);
     }
   });
 

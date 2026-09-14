@@ -286,8 +286,7 @@
     <label>翻译窗口关闭方式</label>
     <div class="radio-group">
       <label class="radio-opt">
-        <input type="radio" name="dismissMode" value="scroll" />
-        <span class="radio-box">
+        <input type="radio" name="dismissMode" value="scroll" checked />
           <span class="radio-icon">↕</span>
           <span class="radio-text">
             <strong>滚动即关闭</strong>
@@ -318,8 +317,7 @@
     <label>面板模式 <span class="badge">MODE</span></label>
     <div class="radio-group">
       <label class="radio-opt">
-        <input type="radio" name="panelMode" value="modal" />
-        <span class="radio-box">
+        <input type="radio" name="panelMode" value="modal" checked />
           <span class="radio-icon">⊞</span>
           <span class="radio-text">
             <strong>模态框</strong>
@@ -345,9 +343,9 @@
   <div class="field">
     <label>面板尺寸 <span class="badge">PX</span></label>
     <div style="display:flex;gap:8px;">
-      <input type="number" id="panelWidth" placeholder="680" min="400" max="1200" style="flex:1;" />
+      <input type="number" id="panelWidth" value="680" placeholder="680" min="400" max="1200" style="flex:1;" />
       <span style="color:#4a5568;align-self:center;">×</span>
-      <input type="number" id="panelHeight" placeholder="160" min="80" max="500" style="flex:1;" />
+      <input type="number" id="panelHeight" value="160" placeholder="160" min="80" max="500" style="flex:1;" />
     </div>
     <div class="hint">面板宽度 × 单个输入框高度（px），实时保存</div>
   </div>
