@@ -6,22 +6,84 @@
   z-index: 2147483646;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 11px 5px 8px;
+  gap: 2px;
+  padding: 3px 5px;
   background: #111827;
   border: 1px solid rgba(99, 179, 237, 0.5);
   border-radius: 999px;
-  cursor: pointer;
   user-select: none;
   box-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(99,179,237,0.08);
   animation: ai-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
 
-#ai-tr-btn:hover {
-  background: #1a2436;
-  border-color: rgba(99, 179, 237, 0.85);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.5), 0 0 12px rgba(99,179,237,0.18);
+#ai-tr-btn .ai-btn-action {
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 3px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.12s, color 0.12s;
+  font-family: inherit;
+}
+
+#ai-tr-btn .ai-btn-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#ai-tr-btn .ai-btn-sep {
+  width: 1px;
+  height: 12px;
+  background: rgba(99, 179, 237, 0.25);
+  margin: 0 1px;
+  flex-shrink: 0;
+}
+
+#ai-tr-btn .ai-speak-icon-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #90cdf4;
+  width: 13px;
+  height: 13px;
+}
+
+#ai-tr-btn .ai-btn-action.playing .ai-speak-icon-slot,
+#ai-tr-btn .ai-btn-action.playing .ai-btn-label {
+  color: #fc8181;
+}
+
+#ai-tr-btn .ai-btn-action.loading .ai-speak-icon-slot,
+#ai-tr-btn .ai-btn-action.loading .ai-btn-label {
+  color: #cbd5e0;
+}
+
+.ai-speak-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(144, 205, 244, 0.3);
+  border-top-color: #90cdf4;
+  border-radius: 50%;
+  animation: ai-spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+.ai-playing-dot-svg {
+  animation: ai-pulse-dot 1.2s ease-in-out infinite;
+  transform-origin: center;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+@keyframes ai-pulse-dot {
+  0%   { transform: scale(0.85); opacity: 0.8; }
+  50%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0.8; }
 }
 
 #ai-tr-btn .ai-btn-icon {
@@ -156,6 +218,47 @@
   flex-shrink: 0;
 }
 
+/* 原文包装容器与朗读按钮 */
+.ai-card-source-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 12px 8px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.015);
+  flex-shrink: 0;
+}
+
+.ai-card-source-wrap .ai-card-source {
+  padding: 0;
+  border-bottom: none;
+  flex: 1;
+}
+
+.ai-card-speak-icon-btn {
+  background: transparent;
+  border: none;
+  color: #4a5568;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+
+.ai-card-speak-icon-btn:hover {
+  color: #90cdf4;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ai-card-speak-icon-btn.playing {
+  color: #fc8181;
+}
+
 /* 卡片主体 */
 .ai-card-body {
   padding: 12px 14px;
@@ -270,6 +373,34 @@
 .ai-copy-btn.copied {
   color: #68d391;
   border-color: rgba(104, 211, 145, 0.3);
+}
+
+.ai-card-foot-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-card-speak-foot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-card-speak-foot-btn .ai-speak-icon-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-card-speak-foot-btn.playing {
+  color: #fc8181 !important;
+  border-color: rgba(252, 129, 129, 0.4) !important;
+}
+
+.ai-mini-btn.playing {
+  color: #fc8181 !important;
+  border-color: rgba(252, 129, 129, 0.4) !important;
 }
 
 /* ===== 翻译面板 (快捷键 Alt+Shift+T) ===== */

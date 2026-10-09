@@ -42,9 +42,68 @@
   });
 
   // ─── 监听划词结束 ────────────────────────────────────────────
+  let lastMouseUpPos = { x: 0, y: 0 };
+
+  function isValidRect(r) {
+    if (!r) return false;
+    if ((!r.width || r.width === 0) && (!r.height || r.height === 0)) return false;
+    if (r.left === 0 && r.top === 0 && r.right === 0 && r.bottom === 0) return false;
+    return true;
+  }
+
+  function makeFallbackRect(pos) {
+    const x = (pos && typeof pos.x === 'number' && pos.x > 0) ? pos.x : window.innerWidth / 2;
+    const y = (pos && typeof pos.y === 'number' && pos.y > 0) ? pos.y : window.innerHeight / 2;
+    return {
+      left: Math.max(0, x - 15),
+      right: x + 15,
+      top: Math.max(0, y - 10),
+      bottom: y + 10,
+      width: 30,
+      height: 20
+    };
+  }
+
+  function getSelectionRect(sel, fallbackPos) {
+    if (!sel || sel.rangeCount === 0) {
+      return makeFallbackRect(fallbackPos);
+    }
+
+    try {
+      const range = sel.getRangeAt(0);
+
+      // 1. 优先尝试 getBoundingClientRect()
+      const bRect = range.getBoundingClientRect();
+      if (isValidRect(bRect)) return bRect;
+
+      // 2. 尝试 getClientRects()（多行/行内元素/Web Component）
+      const cRects = range.getClientRects();
+      if (cRects && cRects.length > 0) {
+        for (let i = cRects.length - 1; i >= 0; i--) {
+          if (isValidRect(cRects[i])) return cRects[i];
+        }
+      }
+
+      // 3. 尝试包含选区的父级节点（如 Web Component / 自定义标签）
+      let container = range.commonAncestorContainer;
+      if (container && container.nodeType === Node.TEXT_NODE) {
+        container = container.parentElement;
+      }
+      if (container && typeof container.getBoundingClientRect === 'function') {
+        const pRect = container.getBoundingClientRect();
+        if (isValidRect(pRect)) return pRect;
+      }
+    } catch (e) {
+      // 忽略 Range 异常，直接使用鼠标坐标回退
+    }
+
+    return makeFallbackRect(fallbackPos);
+  }
+
   // 使用捕获阶段，确保在模态框阻止冒泡前捕获事件
   document.addEventListener('mouseup', (e) => {
     if (isOurUI(e.target)) return;
+    lastMouseUpPos = { x: e.clientX, y: e.clientY };
 
     // 稍微延迟，确保 selection 已更新
     setTimeout(() => {
@@ -53,12 +112,10 @@
 
       if (text && text.length >= 2) {
         selectionText = text;
-        try {
-          selectionRect = sel.getRangeAt(0).getBoundingClientRect();
-        } catch {
-          return;
+        selectionRect = getSelectionRect(sel, lastMouseUpPos);
+        if (selectionRect) {
+          showBtn();
         }
-        showBtn();
       } else {
         closeAll();
       }
@@ -73,24 +130,256 @@
   function isOurUI(el) {
     return !!el.closest?.('#ai-tr-btn, #ai-tr-card, #ai-tr-panel');
   }
+  // ─── SVG 图标 ─────────────────────────────────────────────────
+  const ICONS = {
+    speak: `<svg class="ai-speak-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`,
+    stop: `<svg class="ai-speak-svg ai-playing-dot-svg" viewBox="0 0 16 16" width="12" height="12"><circle cx="8" cy="8" r="5" fill="currentColor"></circle></svg>`,
+  };
+
+  // ─── 智能语言识别与 TTS 模块 ──────────────────────────────────
+  function detectLanguageFast(text) {
+    if (!text) return null;
+    const str = text.trim();
+    // 日文假名（平假名/片假名）
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(str)) return 'ja-JP';
+    // 韩文字母
+    if (/[\uac00-\ud7af\u1100-\u11ff]/.test(str)) return 'ko-KR';
+    // 俄文西里尔字母
+    if (/[\u0400-\u04ff]/.test(str)) return 'ru-RU';
+    // 阿拉伯文
+    if (/[\u0600-\u06ff]/.test(str)) return 'ar-SA';
+    // 泰文
+    if (/[\u0e00-\u0e7f]/.test(str)) return 'th-TH';
+    // 包含中文汉字（且无日文假名）
+    if (/[\u4e00-\u9fa5]/.test(str)) return 'zh-CN';
+    // 纯英文/标准 ASCII
+    if (/^[A-Za-z0-9\s.,!?'"()\-:;/@#$%^&*+=<>_~`]+$/.test(str)) return 'en-US';
+    return null;
+  }
+
+  async function resolveLanguage(text, knownLang) {
+    if (knownLang) {
+      return typeof normalizeBcp47 === 'function' ? normalizeBcp47(knownLang) : knownLang;
+    }
+    const fast = detectLanguageFast(text);
+    if (fast) return fast;
+
+    // 截取前 60 字交给配置的大模型进行判断
+    const sample = (text || '').trim().slice(0, 60);
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+        if (!settings?.apiKey || !settings?.model) {
+          resolve('en-US');
+          return;
+        }
+        chrome.runtime.sendMessage(
+          { type: 'DETECT_LANGUAGE', payload: { text: sample, settings } },
+          (res) => {
+            if (res?.success && res.data) {
+              resolve(res.data);
+            } else {
+              resolve('en-US');
+            }
+          }
+        );
+      });
+    });
+  }
+
+  function splitTextForSpeech(text, maxChunkLen = 140) {
+    if (!text || text.length <= maxChunkLen) return [text];
+    const sentences = text.match(/[^。！？.!?\n]+[。！？.!?\n]*|\n+/g) || [text];
+    const chunks = [];
+    let current = '';
+
+    for (const s of sentences) {
+      if ((current + s).length <= maxChunkLen) {
+        current += s;
+      } else {
+        if (current) chunks.push(current.trim());
+        if (s.length > maxChunkLen) {
+          const subParts = s.match(new RegExp(`.{1,${maxChunkLen}}`, 'g')) || [s];
+          chunks.push(...subParts.map(p => p.trim()));
+          current = '';
+        } else {
+          current = s;
+        }
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.filter(Boolean);
+  }
+
+  const speechController = {
+    currentId: null,
+    sessionId: 0,
+    heartbeatTimer: null,
+    onStateChange: null,
+
+    stop() {
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+      }
+      this.sessionId++;
+      if ('speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch {}
+      }
+      const prevId = this.currentId;
+      const prevCb = this.onStateChange;
+      this.currentId = null;
+      this.onStateChange = null;
+      if (prevId && prevCb) {
+        prevCb(prevId, 'idle');
+      }
+    },
+
+    async speak({ id, text, lang, onStateChange }) {
+      if (!text || !text.trim()) return;
+      if (!('speechSynthesis' in window)) {
+        alert('当前浏览器环境不支持语音合成');
+        return;
+      }
+
+      // 如果点击的是当前正在播放或正在识别的按钮，则切换为停止
+      if (this.currentId === id) {
+        this.stop();
+        return;
+      }
+
+      this.stop();
+
+      this.currentId = id;
+      this.onStateChange = onStateChange;
+      const session = ++this.sessionId;
+
+      if (this.onStateChange) {
+        this.onStateChange(id, 'detecting');
+      }
+
+      let targetLang = lang;
+      if (!targetLang) {
+        targetLang = await resolveLanguage(text);
+      }
+
+      if (this.sessionId !== session) return; // 期间已被取消
+
+      const chunks = splitTextForSpeech(text);
+      if (!chunks.length) {
+        this.stop();
+        return;
+      }
+
+      if (this.onStateChange) {
+        this.onStateChange(id, 'playing');
+      }
+
+      // Chromium 15 秒保活心跳
+      this.heartbeatTimer = setInterval(() => {
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }
+      }, 10000);
+
+      const voices = window.speechSynthesis.getVoices?.() || [];
+      const normLang = typeof normalizeBcp47 === 'function' ? normalizeBcp47(targetLang) : targetLang;
+      const langPrefix = normLang.split('-')[0].toLowerCase();
+      const matchedVoice = voices.find(v => v.lang.toLowerCase() === normLang.toLowerCase())
+        || voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
+
+      let chunkIdx = 0;
+      const playNext = () => {
+        if (this.sessionId !== session) return;
+        if (chunkIdx >= chunks.length) {
+          this.stop();
+          return;
+        }
+
+        const chunkText = chunks[chunkIdx++];
+        const utterance = new SpeechSynthesisUtterance(chunkText);
+        utterance.lang = normLang;
+        if (matchedVoice) utterance.voice = matchedVoice;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        utterance.onend = () => {
+          if (this.sessionId === session) playNext();
+        };
+        utterance.onerror = (e) => {
+          if (e.error !== 'interrupted') {
+            console.warn('[AI Translator] TTS error:', e);
+          }
+          if (this.sessionId === session) this.stop();
+        };
+
+        window.speechSynthesis.speak(utterance);
+      };
+
+      playNext();
+    }
+  };
+
 
   // ─── 显示翻译小按钮 ──────────────────────────────────────────
+  // ─── 显示翻译/朗读悬浮工具栏 ─────────────────────────────────
   function showBtn() {
     removeEl('ai-tr-btn');
     removeEl('ai-tr-card');
 
-    const btn = document.createElement('div');
-    btn.id = 'ai-tr-btn';
-    btn.innerHTML = `
-      <span class="ai-btn-icon">AI</span>
-      <span class="ai-btn-label">翻译</span>
+    const bar = document.createElement('div');
+    bar.id = 'ai-tr-btn';
+    bar.innerHTML = `
+      <button class="ai-btn-action ai-btn-tr-action" id="ai-quick-tr" title="翻译选中文本">
+        <span class="ai-btn-icon">AI</span>
+        <span class="ai-btn-label">翻译</span>
+      </button>
+      <span class="ai-btn-sep"></span>
+      <button class="ai-btn-action ai-btn-speak-action" id="ai-quick-speak" title="朗读选中文本（智能识别语言）">
+        <span class="ai-speak-icon-slot">${ICONS.speak}</span>
+        <span class="ai-btn-label">朗读</span>
+      </button>
     `;
-    placeNear(btn, selectionRect, 'btn');
-    getMountTarget().appendChild(btn);
+    placeNear(bar, selectionRect, 'btn');
+    getMountTarget().appendChild(bar);
 
-    btn.addEventListener('click', (e) => {
+    bar.querySelector('#ai-quick-tr').addEventListener('click', (e) => {
       e.stopPropagation();
+      speechController.stop();
       doTranslate();
+    });
+
+    const speakBtn = bar.querySelector('#ai-quick-speak');
+    speakBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const textToSpeak = selectionText;
+      speechController.speak({
+        id: 'quick-btn',
+        text: textToSpeak,
+        onStateChange: (id, state) => {
+          if (id !== 'quick-btn') return;
+          const slot = speakBtn.querySelector('.ai-speak-icon-slot');
+          const label = speakBtn.querySelector('.ai-btn-label');
+          if (!slot || !label) return;
+          if (state === 'detecting') {
+            slot.innerHTML = '<span class="ai-speak-spinner"></span>';
+            label.textContent = '识别中';
+            speakBtn.classList.add('loading');
+            speakBtn.classList.remove('playing');
+          } else if (state === 'playing') {
+            slot.innerHTML = ICONS.stop;
+            label.textContent = '停止';
+            speakBtn.classList.remove('loading');
+            speakBtn.classList.add('playing');
+          } else {
+            slot.innerHTML = ICONS.speak;
+            label.textContent = '朗读';
+            speakBtn.classList.remove('loading', 'playing');
+          }
+        }
+      });
     });
   }
 
@@ -150,9 +439,14 @@
       footHtml = `
         <div class="ai-card-foot">
           <span class="ai-model-tag">${esc(modelLabel)}</span>
-          <button class="ai-copy-btn" id="ai-copy-btn">复制</button>
+          <div class="ai-card-foot-btns">
+            <button class="ai-copy-btn ai-card-speak-foot-btn" id="ai-card-speak-tgt" title="朗读译文">
+              <span class="ai-speak-icon-slot">${ICONS.speak}</span>
+              <span class="ai-speak-btn-text">朗读</span>
+            </button>
+            <button class="ai-copy-btn" id="ai-copy-btn">复制</button>
+          </div>
         </div>`;
-    } else if (state === 'error') {
       const link = needSettings
         ? `<br><span class="ai-error-link" id="ai-open-settings">→ 打开设置</span>`
         : '';
@@ -174,7 +468,12 @@
         </div>
         <button class="ai-card-close" id="ai-card-close">×</button>
       </div>
-      <div class="ai-card-source">${esc(preview)}</div>
+      <div class="ai-card-source-wrap">
+        <div class="ai-card-source">${esc(preview)}</div>
+        <button class="ai-card-speak-icon-btn" id="ai-card-speak-src" title="朗读原文（智能识别语言）">
+          <span class="ai-speak-icon-slot">${ICONS.speak}</span>
+        </button>
+      </div>
       <div class="ai-card-body">${bodyHtml}</div>
       ${footHtml}
     `;
@@ -233,6 +532,56 @@
     card.querySelector('#ai-retry-btn')?.addEventListener('click', () => {
       doTranslate();
     });
+    const srcSpeakBtn = card.querySelector('#ai-card-speak-src');
+    srcSpeakBtn?.addEventListener('click', () => {
+      const textToSpeak = selectionText;
+      speechController.speak({
+        id: 'card-src',
+        text: textToSpeak,
+        onStateChange: (id, st) => {
+          if (id !== 'card-src') return;
+          const slot = srcSpeakBtn.querySelector('.ai-speak-icon-slot');
+          if (!slot) return;
+          if (st === 'detecting') {
+            slot.innerHTML = '<span class="ai-speak-spinner"></span>';
+            srcSpeakBtn.classList.add('loading');
+            srcSpeakBtn.classList.remove('playing');
+          } else if (st === 'playing') {
+            slot.innerHTML = ICONS.stop;
+            srcSpeakBtn.classList.remove('loading');
+            srcSpeakBtn.classList.add('playing');
+          } else {
+            slot.innerHTML = ICONS.speak;
+            srcSpeakBtn.classList.remove('loading', 'playing');
+          }
+        }
+      });
+    });
+
+    // 朗读译文（目标语言已知，0延迟）
+    const tgtSpeakBtn = card.querySelector('#ai-card-speak-tgt');
+    tgtSpeakBtn?.addEventListener('click', () => {
+      const targetLang = settings.targetLang || 'zh-CN';
+      speechController.speak({
+        id: 'card-tgt',
+        text: content,
+        lang: targetLang,
+        onStateChange: (id, st) => {
+          if (id !== 'card-tgt') return;
+          const slot = tgtSpeakBtn.querySelector('.ai-speak-icon-slot');
+          const txt = tgtSpeakBtn.querySelector('.ai-speak-btn-text');
+          if (st === 'playing') {
+            if (slot) slot.innerHTML = ICONS.stop;
+            if (txt) txt.textContent = '停止';
+            tgtSpeakBtn.classList.add('playing');
+          } else {
+            if (slot) slot.innerHTML = ICONS.speak;
+            if (txt) txt.textContent = '朗读';
+            tgtSpeakBtn.classList.remove('playing');
+          }
+        }
+      });
+    });
   }
 
   // ─── 结果卡片自动调整尺寸 ────────────────────────────────────
@@ -272,15 +621,20 @@
     const elW = el.offsetWidth, elH = el.offsetHeight;
 
     let left = rect.left;
-    if (left + elW > vw - 8) left = vw - elW - 8;
-    if (left < 4) left = 4;
+    if (rect.width > 0 && rect.width < elW) {
+      left = rect.left + (rect.width - elW) / 2;
+    }
+    if (left + elW > vw - 12) left = vw - elW - 12;
+    if (left < 12) left = 12;
 
     let top = rect.bottom + GAP;
-    if (top + elH + GAP > vh) top = rect.top - elH - GAP; // 下方放不下 → 选区上方
-    top = Math.max(4, Math.min(top, vh - elH - 4));       // 始终保持在视口内
+    if (top + elH + GAP > vh) {
+      top = rect.top - elH - GAP;
+    }
+    top = Math.max(12, Math.min(top, vh - elH - 12));
 
-    el.style.left = left + 'px';
-    el.style.top = top + 'px';
+    el.style.left = Math.round(left) + 'px';
+    el.style.top = Math.round(top) + 'px';
   }
 
   // ─── 元素定位（靠近选区） ────────────────────────────────────
@@ -291,25 +645,31 @@
     el.style.visibility = 'hidden';
     el.style.position = 'fixed';
     document.body.appendChild(el);
-    const elW = el.offsetWidth;
-    const elH = el.offsetHeight;
+    const elW = el.offsetWidth || 130;
+    const elH = el.offsetHeight || 32;
     el.remove();
     el.style.visibility = '';
-    el.style.position = '';
+    el.style.position = 'fixed';
 
-    let left = rect.left;
-    let top  = rect.bottom + GAP;
-
+    // 水平方向：选区较窄或正常情况下居中显示，体验更聚焦自然
+    let left = rect.left + (rect.width - elW) / 2;
     if (left + elW > vw - 8) left = vw - elW - 8;
-    if (left < 4) left = 4;
+    if (left < 8) left = 8;
 
-    if (rect.bottom + elH + GAP > vh) {
+    // 垂直方向：优先放置于选区下方
+    let top = rect.bottom + GAP;
+
+    // 下方超出视口 → 翻转至选区上方
+    if (top + elH + GAP > vh) {
       top = rect.top - elH - GAP;
-      if (top < 4) top = rect.bottom + GAP;
+      if (top < 8) {
+        top = Math.min(rect.bottom + GAP, vh - elH - 8);
+      }
     }
+    top = Math.max(8, Math.min(top, vh - elH - 8));
 
-    el.style.left = left + 'px';
-    el.style.top  = top  + 'px';
+    el.style.left = Math.round(left) + 'px';
+    el.style.top  = Math.round(top)  + 'px';
   }
 
   // ─── 挂载点 ────────────────────────────────────────────────────
@@ -322,6 +682,7 @@
   function removeEl(id) { document.getElementById(id)?.remove(); }
   function closeAll() {
     activeCardRequestId = 0; // 重置请求 ID，放弃等待中的响应
+    speechController.stop();
     removeEl('ai-tr-btn');
     removeEl('ai-tr-card');
   }
@@ -379,6 +740,7 @@
 
   function closePanel() {
     if (!panelVisible) return;
+    speechController.stop();
     panelVisible = false;
     document.querySelectorAll('.ai-select.open').forEach(s => s.classList.remove('open'));
     const el = document.getElementById('ai-tr-panel');
@@ -482,6 +844,7 @@
               <div class="ai-box-actions-left">
                 <button class="ai-mini-btn" data-action="clear" data-side="src" title="清空">清空</button>
                 <button class="ai-mini-btn" data-action="copy" data-side="src" title="复制">复制</button>
+                <button class="ai-mini-btn" data-action="speak" data-side="src" title="朗读原文">朗读</button>
               </div>
               <div class="ai-box-actions-right">
                 <button id="ai-panel-translate" class="ai-btn-translate-primary" title="快捷键 Ctrl+Enter">
@@ -500,6 +863,7 @@
               <div class="ai-box-actions-left">
                 <button class="ai-mini-btn" data-action="clear" data-side="tgt" title="清空">清空</button>
                 <button class="ai-mini-btn" data-action="copy" data-side="tgt" title="复制">复制</button>
+                <button class="ai-mini-btn" data-action="speak" data-side="tgt" title="朗读译文">朗读</button>
               </div>
               <div class="ai-box-actions-right">
                 <div id="ai-panel-tgt-lang-mount"></div>
@@ -565,6 +929,28 @@
             const orig = btn.textContent;
             btn.textContent = '已复制 ✓';
             setTimeout(() => { btn.textContent = orig; }, 1500);
+          });
+        } else if (action === 'speak') {
+          const val = tb.value.trim();
+          if (!val) return;
+          const id = `panel-${side}`;
+          const lang = side === 'tgt' ? (div.querySelector('#ai-panel-tgt-lang')?.value || 'zh-CN') : null;
+          speechController.speak({
+            id,
+            text: val,
+            lang,
+            onStateChange: (activeId, st) => {
+              if (activeId !== id) return;
+              if (st === 'playing') {
+                btn.textContent = '停止';
+                btn.classList.add('playing');
+              } else if (st === 'detecting') {
+                btn.textContent = '识别中';
+              } else {
+                btn.textContent = '朗读';
+                btn.classList.remove('playing');
+              }
+            }
           });
         }
       });

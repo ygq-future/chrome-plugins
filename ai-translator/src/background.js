@@ -20,6 +20,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
+  if (message.type === 'DETECT_LANGUAGE') {
+    handleDetectLanguage(message.payload)
+      .then(lang => sendResponse({ success: true, data: lang }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
 
   if (message.type === 'GET_SETTINGS') {
     chrome.storage.sync.get(null, data => sendResponse(data));
@@ -107,6 +114,50 @@ ${text}`;
   const result = data.choices?.[0]?.message?.content?.trim();
   if (!result) throw new Error('API 返回内容为空');
   return result;
+}
+
+async function handleDetectLanguage({ text, settings }) {
+  const { apiBase, apiKey, model } = settings || {};
+  if (!apiKey) throw new Error('请先在插件设置中填写 API Key');
+  if (!model) throw new Error('请先在插件设置中获取并选择模型');
+
+  const sample = (text || '').trim().slice(0, 80);
+  if (!sample) return 'en-US';
+
+  const baseUrl = (apiBase || 'https://api.openai.com').replace(/\/$/, '');
+  const url = `${baseUrl}/v1/chat/completions`;
+
+  const prompt = `Identify the primary language of the text below.
+Respond ONLY with the standard BCP-47 language tag (e.g. zh-CN, zh-TW, en-US, ja-JP, ko-KR, fr-FR, de-DE, es-ES, ru-RU, pt-PT, it-IT, ar-SA, vi-VN, th-TH, id-ID, hi-IN, nl-NL, pl-PL, tr-TR).
+Do not output any explanation, markdown, or other characters.
+
+Text:
+${sample}`;
+
+  const response = await fetchWithTimeout(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 15,
+      temperature: 0,
+    }),
+  }, 10000);
+
+  if (!response.ok) {
+    throw new Error(`语言识别失败: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const rawLang = data.choices?.[0]?.message?.content?.trim();
+  if (typeof normalizeBcp47 === 'function') {
+    return normalizeBcp47(rawLang);
+  }
+  return rawLang || 'en-US';
 }
 
 async function handleFetchModels({ apiBase, apiKey }) {

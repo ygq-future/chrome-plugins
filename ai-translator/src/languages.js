@@ -26,7 +26,63 @@ function getLanguageName(code) {
   return item ? item.name : (code || '简体中文');
 }
 
+const BCP47_MAP = {
+  'zh': 'zh-CN',
+  'zh-cn': 'zh-CN',
+  'zh-hans': 'zh-CN',
+  'zh-tw': 'zh-TW',
+  'zh-hant': 'zh-TW',
+  'zh-hk': 'zh-TW',
+  'en': 'en-US',
+  'en-us': 'en-US',
+  'en-gb': 'en-GB',
+  'ja': 'ja-JP',
+  'ja-jp': 'ja-JP',
+  'ko': 'ko-KR',
+  'ko-kr': 'ko-KR',
+  'fr': 'fr-FR',
+  'fr-fr': 'fr-FR',
+  'de': 'de-DE',
+  'de-de': 'de-DE',
+  'es': 'es-ES',
+  'es-es': 'es-ES',
+  'ru': 'ru-RU',
+  'ru-ru': 'ru-RU',
+  'pt': 'pt-PT',
+  'pt-pt': 'pt-PT',
+  'pt-br': 'pt-BR',
+  'it': 'it-IT',
+  'it-it': 'it-IT',
+  'ar': 'ar-SA',
+  'ar-sa': 'ar-SA',
+  'vi': 'vi-VN',
+  'vi-vn': 'vi-VN',
+  'th': 'th-TH',
+  'th-th': 'th-TH',
+  'id': 'id-ID',
+  'id-id': 'id-ID',
+  'hi': 'hi-IN',
+  'hi-in': 'hi-IN',
+  'nl': 'nl-NL',
+  'nl-nl': 'nl-NL',
+  'pl': 'pl-PL',
+  'pl-pl': 'pl-PL',
+  'tr': 'tr-TR',
+  'tr-tr': 'tr-TR',
+};
+
+function normalizeBcp47(raw) {
+  if (!raw || typeof raw !== 'string') return 'en-US';
+  // 清理可能带有的标点、反引号或说明文本
+  const clean = raw.trim().replace(/^[`'"]+|[`'"]+$/g, '').split(/[\s,，]+/)[0].trim();
+  const lower = clean.toLowerCase();
+  if (BCP47_MAP[lower]) return BCP47_MAP[lower];
+  const prefix = lower.split('-')[0];
+  if (BCP47_MAP[prefix]) return BCP47_MAP[prefix];
+  return clean || 'en-US';
+}
+
 // Support CommonJS export if tested in Node.js environment
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SUPPORTED_LANGUAGES, getLanguageName };
+  module.exports = { SUPPORTED_LANGUAGES, getLanguageName, normalizeBcp47, BCP47_MAP };
 }
