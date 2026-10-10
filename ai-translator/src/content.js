@@ -447,6 +447,7 @@
             <button class="ai-copy-btn" id="ai-copy-btn">复制</button>
           </div>
         </div>`;
+    } else if (state === 'error') {
       const link = needSettings
         ? `<br><span class="ai-error-link" id="ai-open-settings">→ 打开设置</span>`
         : '';
@@ -688,7 +689,9 @@
   }
 
   function esc(s) {
-    return String(s)
+    if (!s) return '';
+    const clean = String(s).trim().replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+    return clean
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/\n/g,'<br>');
   }
@@ -698,6 +701,8 @@
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'TOGGLE_PANEL') {
+      // 快捷键仅在最顶层窗口响应，避免页面内嵌套 iframe 重复弹出面板
+      if (window !== window.top) return;
       panelVisible ? closePanel() : openPanel();
     }
   });

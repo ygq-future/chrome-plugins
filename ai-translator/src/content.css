@@ -120,6 +120,7 @@
   min-width: 240px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 32px);
+  height: auto;
   background: #0d1117;
   border: 1px solid rgba(99, 179, 237, 0.2);
   border-radius: 14px;
@@ -129,6 +130,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   animation: ai-card-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
 }
@@ -261,10 +263,11 @@
 
 /* 卡片主体 */
 .ai-card-body {
-  padding: 12px 14px;
-  flex: 1 1 auto;
+  padding: 10px 14px 12px;
+  flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
+  box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: rgba(99, 179, 237, 0.3) transparent;
 }
