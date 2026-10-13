@@ -5,27 +5,61 @@
   <title>AI 划词翻译</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { background: #0d1117; }
+    html, body {
+      color-scheme: dark;
+      background: #0d1117;
+    }
     body {
       width: 340px;
       max-height: 580px;
       overflow-y: auto;
       border-radius: 14px;
-      background: #0d1117;
       color: #e2e8f0;
       font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
       font-size: 13px;
     }
-    /* 自定义滚动条 */
-    body { scrollbar-width: thin; scrollbar-color: rgba(99,179,237,0.3) transparent; }
-    body::-webkit-scrollbar { width: 8px; }
-    body::-webkit-scrollbar-track { background: transparent; }
-    body::-webkit-scrollbar-thumb {
-      background: rgba(99,179,237,0.28); border-radius: 8px;
-      border: 2px solid transparent; background-clip: padding-box;
+    /* 自定义精致小巧滚动条（全局统一样式，无上下箭头） */
+    *::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
     }
-    body::-webkit-scrollbar-thumb:hover {
-      background: rgba(99,179,237,0.5); background-clip: padding-box;
+    *::-webkit-scrollbar-track,
+    *::-webkit-scrollbar-track-piece {
+      background: transparent !important;
+    }
+    *::-webkit-scrollbar-button,
+    *::-webkit-scrollbar-button:single-button,
+    *::-webkit-scrollbar-button:double-button,
+    *::-webkit-scrollbar-button:vertical:start:decrement,
+    *::-webkit-scrollbar-button:vertical:end:increment {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      background: transparent !important;
+    }
+    *::-webkit-scrollbar-thumb {
+      background: rgba(99, 179, 237, 0.42);
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background-clip: padding-box;
+      transition: background 0.15s ease;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background: rgba(99, 179, 237, 0.75);
+      background-clip: padding-box;
+    }
+    *::-webkit-scrollbar-thumb:active {
+      background: rgba(99, 179, 237, 0.95);
+      background-clip: padding-box;
+    }
+    *::-webkit-scrollbar-corner {
+      background: transparent !important;
+    }
+    @supports not selector(::-webkit-scrollbar) {
+      *, *::before, *::after {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(99, 179, 237, 0.35) transparent;
+      }
     }
     .hd {
       display: flex; align-items: center; gap: 11px;
@@ -209,7 +243,7 @@
       background: #161b27; border: 1px solid rgba(99,179,237,0.2);
       border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);
       padding: 4px; z-index: 10; display: none; overflow-y: auto;
-      max-height: 200px; scrollbar-width: thin;
+      max-height: 200px;
     }
     .ai-select.open .ai-select-drop {
       display: block; animation: ai-drop-in 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards;

@@ -10,6 +10,122 @@
   box-sizing: border-box !important;
 }
 
+#ai-tr-card,
+#ai-tr-panel {
+  color-scheme: dark;
+}
+
+/* ===== 精致小巧自定义滚动条（全组件统一覆盖，切勿使用 scrollbar-color/scrollbar-width 避免触发 Chrome 原生箭头） ===== */
+
+#ai-tr-card::-webkit-scrollbar,
+#ai-tr-card *::-webkit-scrollbar,
+#ai-tr-panel::-webkit-scrollbar,
+#ai-tr-panel *::-webkit-scrollbar,
+.ai-select-drop::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+#ai-tr-card::-webkit-scrollbar-track,
+#ai-tr-card *::-webkit-scrollbar-track,
+#ai-tr-panel::-webkit-scrollbar-track,
+#ai-tr-panel *::-webkit-scrollbar-track,
+.ai-select-drop::-webkit-scrollbar-track,
+#ai-tr-card::-webkit-scrollbar-track-piece,
+#ai-tr-card *::-webkit-scrollbar-track-piece,
+#ai-tr-panel::-webkit-scrollbar-track-piece,
+#ai-tr-panel *::-webkit-scrollbar-track-piece,
+.ai-select-drop::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+
+/* 坚决隐藏所有方向箭头按钮（禁止触发 Windows/Chrome 原生三角箭头） */
+#ai-tr-card::-webkit-scrollbar-button,
+#ai-tr-card *::-webkit-scrollbar-button,
+#ai-tr-panel::-webkit-scrollbar-button,
+#ai-tr-panel *::-webkit-scrollbar-button,
+.ai-panel-box textarea::-webkit-scrollbar-button,
+.ai-select-drop::-webkit-scrollbar-button,
+#ai-tr-card::-webkit-scrollbar-button:single-button,
+#ai-tr-card *::-webkit-scrollbar-button:single-button,
+#ai-tr-panel::-webkit-scrollbar-button:single-button,
+#ai-tr-panel *::-webkit-scrollbar-button:single-button,
+.ai-panel-box textarea::-webkit-scrollbar-button:single-button,
+.ai-select-drop::-webkit-scrollbar-button:single-button,
+#ai-tr-card::-webkit-scrollbar-button:double-button,
+#ai-tr-card *::-webkit-scrollbar-button:double-button,
+#ai-tr-panel::-webkit-scrollbar-button:double-button,
+#ai-tr-panel *::-webkit-scrollbar-button:double-button,
+.ai-panel-box textarea::-webkit-scrollbar-button:double-button,
+.ai-select-drop::-webkit-scrollbar-button:double-button,
+#ai-tr-card::-webkit-scrollbar-button:vertical:start:decrement,
+#ai-tr-card *::-webkit-scrollbar-button:vertical:start:decrement,
+#ai-tr-panel::-webkit-scrollbar-button:vertical:start:decrement,
+#ai-tr-panel *::-webkit-scrollbar-button:vertical:start:decrement,
+.ai-panel-box textarea::-webkit-scrollbar-button:vertical:start:decrement,
+.ai-select-drop::-webkit-scrollbar-button:vertical:start:decrement,
+#ai-tr-card::-webkit-scrollbar-button:vertical:end:increment,
+#ai-tr-card *::-webkit-scrollbar-button:vertical:end:increment,
+#ai-tr-panel::-webkit-scrollbar-button:vertical:end:increment,
+#ai-tr-panel *::-webkit-scrollbar-button:vertical:end:increment,
+.ai-panel-box textarea::-webkit-scrollbar-button:vertical:end:increment,
+.ai-select-drop::-webkit-scrollbar-button:vertical:end:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+#ai-tr-card::-webkit-scrollbar-thumb,
+#ai-tr-card *::-webkit-scrollbar-thumb,
+#ai-tr-panel::-webkit-scrollbar-thumb,
+#ai-tr-panel *::-webkit-scrollbar-thumb,
+.ai-select-drop::-webkit-scrollbar-thumb {
+  background: rgba(99, 179, 237, 0.42);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.15s ease;
+}
+
+#ai-tr-card::-webkit-scrollbar-thumb:hover,
+#ai-tr-card *::-webkit-scrollbar-thumb:hover,
+#ai-tr-panel::-webkit-scrollbar-thumb:hover,
+#ai-tr-panel *::-webkit-scrollbar-thumb:hover,
+.ai-select-drop::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 179, 237, 0.75);
+  background-clip: padding-box;
+}
+
+#ai-tr-card::-webkit-scrollbar-thumb:active,
+#ai-tr-card *::-webkit-scrollbar-thumb:active,
+#ai-tr-panel::-webkit-scrollbar-thumb:active,
+#ai-tr-panel *::-webkit-scrollbar-thumb:active,
+.ai-select-drop::-webkit-scrollbar-thumb:active {
+  background: rgba(99, 179, 237, 0.95);
+  background-clip: padding-box;
+}
+
+#ai-tr-card::-webkit-scrollbar-corner,
+#ai-tr-card *::-webkit-scrollbar-corner,
+#ai-tr-panel::-webkit-scrollbar-corner,
+#ai-tr-panel *::-webkit-scrollbar-corner,
+.ai-select-drop::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* 仅针对不支持 ::-webkit-scrollbar 的非 Chromium 浏览器回退，Chrome 下绝不加载以防箭头出现 */
+@supports not selector(::-webkit-scrollbar) {
+  #ai-tr-card,
+  #ai-tr-card *,
+  #ai-tr-panel,
+  #ai-tr-panel *,
+  .ai-select-drop {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(99, 179, 237, 0.35) transparent;
+  }
+}
+
 #ai-tr-btn div,
 #ai-tr-card div,
 #ai-tr-panel div {
@@ -373,30 +489,10 @@
   min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(99, 179, 237, 0.3) transparent;
+  /* 滚动条由上方统一 Webkit 规则接管，切勿设置 scrollbar-width/scrollbar-color */
 }
 
-/* 自定义滚动条（Webkit） */
-.ai-card-body::-webkit-scrollbar {
-  width: 8px;
-}
-
-.ai-card-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.ai-card-body::-webkit-scrollbar-thumb {
-  background: rgba(99, 179, 237, 0.28);
-  border-radius: 8px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.ai-card-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 179, 237, 0.5);
-  background-clip: padding-box;
-}
+/* 自定义滚动条由上方统一规则处理 */
 
 /* 加载状态 */
 .ai-loading {
@@ -565,9 +661,9 @@
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.03);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: ai-card-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 @keyframes ai-fade-in {
@@ -681,6 +777,8 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* 编辑卡片容器 */
@@ -700,6 +798,14 @@
   box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.08), 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
+.ai-textarea-wrap {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .ai-panel-box textarea {
   display: block;
   width: 100%;
@@ -713,6 +819,8 @@
   line-height: 1.6;
   outline: none;
   resize: none;
+  border-radius: 12px;
+  overflow-y: auto;
   box-sizing: border-box;
 }
 
@@ -902,8 +1010,7 @@
   display: none;
   overflow-y: auto;
   max-height: 220px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(99, 179, 237, 0.3) transparent;
+  /* 滚动条由上方统一 Webkit 规则接管 */
   box-sizing: border-box;
 }
 

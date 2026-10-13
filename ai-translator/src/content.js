@@ -844,7 +844,9 @@
         <div class="ai-panel-bd">
           <!-- 上方：输入源文本区 -->
           <div class="ai-panel-box ai-source-box">
-            <textarea id="ai-panel-src-text" placeholder="输入要翻译的文本..." spellcheck="false"></textarea>
+            <div class="ai-textarea-wrap">
+              <textarea id="ai-panel-src-text" placeholder="输入要翻译的文本..." spellcheck="false"></textarea>
+            </div>
             <div class="ai-panel-box-toolbar">
               <div class="ai-box-actions-left">
                 <button class="ai-mini-btn" data-action="clear" data-side="src" title="清空">清空</button>
@@ -863,7 +865,9 @@
 
           <!-- 下方：目标语言翻译结果区 -->
           <div class="ai-panel-box ai-target-box">
-            <textarea id="ai-panel-tgt-text" placeholder="翻译结果..." spellcheck="false"></textarea>
+            <div class="ai-textarea-wrap">
+              <textarea id="ai-panel-tgt-text" placeholder="翻译结果..." spellcheck="false"></textarea>
+            </div>
             <div class="ai-panel-box-toolbar">
               <div class="ai-box-actions-left">
                 <button class="ai-mini-btn" data-action="clear" data-side="tgt" title="清空">清空</button>
@@ -888,6 +892,25 @@
 
     const srcText = div.querySelector('#ai-panel-src-text');
     const tgtText = div.querySelector('#ai-panel-tgt-text');
+
+    // 鼠标位于滚动条区域时显示标准指针（避免持续显示文本输入工字光标）
+    function bindTextareaScrollbarCursor(textarea) {
+      textarea.addEventListener('mousemove', (e) => {
+        if (textarea.scrollHeight > textarea.clientHeight) {
+          const rect = textarea.getBoundingClientRect();
+          if (e.clientX >= rect.right - 14) {
+            textarea.style.cursor = 'default';
+            return;
+          }
+        }
+        if (textarea.style.cursor) textarea.style.cursor = '';
+      });
+      textarea.addEventListener('mouseleave', () => {
+        if (textarea.style.cursor) textarea.style.cursor = '';
+      });
+    }
+    bindTextareaScrollbarCursor(srcText);
+    bindTextareaScrollbarCursor(tgtText);
 
     // 关闭
     const close = () => closePanel();
