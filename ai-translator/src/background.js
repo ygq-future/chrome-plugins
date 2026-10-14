@@ -59,6 +59,35 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
+// ─── 扩展安装/重载时，自动向已有标签页重新注入脚本 ───────
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const manifest = chrome.runtime.getManifest();
+    const contentScripts = manifest.content_scripts || [];
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      for (const cs of contentScripts) {
+        if (cs.css?.length) {
+          chrome.scripting.insertCSS({
+            target: { tabId: tab.id, allFrames: cs.all_frames ?? true },
+            files: cs.css
+          }).catch(() => {});
+        }
+        if (cs.js?.length) {
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id, allFrames: cs.all_frames ?? true },
+            files: cs.js
+          }).catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    // 忽略受限页面（如 chrome:// 等无法注入的页面）
+  }
+});
+
 const REQUEST_TIMEOUT_MS = 20000;
 
 async function fetchWithTimeout(url, options, ms) {

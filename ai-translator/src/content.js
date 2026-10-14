@@ -2,6 +2,24 @@
 (function () {
   'use strict';
 
+  // ─── 单例防重注入与旧实例清理 ──────────────────────────────────
+  if (typeof window.__AI_TRANSLATOR_CLEANUP__ === 'function') {
+    try {
+      window.__AI_TRANSLATOR_CLEANUP__();
+    } catch (e) {}
+  }
+
+  const abortController = new AbortController();
+  const { signal } = abortController;
+
+  window.__AI_TRANSLATOR_CLEANUP__ = function () {
+    try {
+      abortController.abort();
+      closeAll();
+      closePanel();
+    } catch (e) {}
+  };
+
   let selectionText = '';
   let selectionRect = null;
   let activeCardRequestId = 0; // 用于追踪划词翻译请求生命周期，避免取消后仍弹出卡片
@@ -23,6 +41,28 @@
     );
   }
 
+  // ─── 安全通信封装（显式捕获 Promise rejection，避免 Chrome 记入错误日志） ──
+  function safeSendMessage(message, callback) {
+    if (!isExtensionValid()) {
+      if (callback) callback(null, new Error('Extension context invalidated'));
+      return;
+    }
+    try {
+      const p = chrome.runtime.sendMessage(message, (res) => {
+        const lastErr = chrome.runtime?.lastError;
+        if (callback) callback(res, lastErr);
+      });
+      if (p && typeof p.catch === 'function') {
+        p.catch((err) => {
+          // 捕获异步 Promise rejection
+          if (callback) callback(null, err);
+        });
+      }
+    } catch (err) {
+      if (callback) callback(null, err);
+    }
+  }
+
   // ─── 读取「关闭方式」设置，决定是否绑定滚动关闭 ─────────────
   // dismissOnScroll: true = 滚动即关闭; false = 仅点击其他地方关闭（默认）
   let dismissOnScroll = false;
@@ -30,7 +70,7 @@
   function applyScrollSetting(val) {
     dismissOnScroll = val;
     if (dismissOnScroll) {
-      window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+      window.addEventListener('scroll', onScroll, { passive: true, capture: true, signal });
     } else {
       window.removeEventListener('scroll', onScroll, { capture: true });
     }
@@ -64,7 +104,7 @@
     if (!e.target.closest('.ai-select')) {
       document.querySelectorAll('.ai-select.open').forEach(s => s.classList.remove('open'));
     }
-  });
+  }, { signal });
 
   // ─── 监听划词结束 ────────────────────────────────────────────
   let lastMouseUpPos = { x: 0, y: 0 };
@@ -128,6 +168,10 @@
   // 使用捕获阶段，确保在模态框阻止冒泡前捕获事件
   document.addEventListener('mouseup', (e) => {
     if (isOurUI(e.target)) return;
+    if (!isExtensionValid()) {
+      closeAll();
+      return;
+    }
     lastMouseUpPos = { x: e.clientX, y: e.clientY };
 
     // 稍微延迟，确保 selection 已更新
@@ -145,12 +189,12 @@
         closeAll();
       }
     }, 20);
-  }, true);
+  }, { capture: true, signal });
 
   // 点击非 UI 区域 → 关闭（捕获阶段，确保在模态框中也能触发）
   document.addEventListener('mousedown', (e) => {
     if (!isOurUI(e.target)) closeAll();
-  }, true);
+  }, { capture: true, signal });
 
   function isOurUI(el) {
     return !!el.closest?.('#ai-tr-btn, #ai-tr-card, #ai-tr-panel');
@@ -196,34 +240,22 @@
         resolve('en-US');
         return;
       }
-      try {
-        chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
-          if (!isExtensionValid() || chrome.runtime?.lastError || !settings?.apiKey || !settings?.model) {
-            resolve('en-US');
-            return;
+      safeSendMessage({ type: 'GET_SETTINGS' }, (settings, err) => {
+        if (err || !isExtensionValid() || !settings?.apiKey || !settings?.model) {
+          resolve('en-US');
+          return;
+        }
+        safeSendMessage(
+          { type: 'DETECT_LANGUAGE', payload: { text: sample, settings } },
+          (res, detErr) => {
+            if (detErr || !isExtensionValid() || !res?.success || !res?.data) {
+              resolve('en-US');
+              return;
+            }
+            resolve(res.data);
           }
-          try {
-            chrome.runtime.sendMessage(
-              { type: 'DETECT_LANGUAGE', payload: { text: sample, settings } },
-              (res) => {
-                if (!isExtensionValid() || chrome.runtime?.lastError) {
-                  resolve('en-US');
-                  return;
-                }
-                if (res?.success && res.data) {
-                  resolve(res.data);
-                } else {
-                  resolve('en-US');
-                }
-              }
-            );
-          } catch (e) {
-            resolve('en-US');
-          }
-        });
-      } catch (e) {
-        resolve('en-US');
-      }
+        );
+      });
     });
   }
 
@@ -440,52 +472,36 @@
 
     showCard('loading');
 
-    try {
-      chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
-        if (reqId !== activeCardRequestId) return; // 已被用户取消
+    safeSendMessage({ type: 'GET_SETTINGS' }, (settings, err) => {
+      if (reqId !== activeCardRequestId) return; // 已被用户取消
 
-        if (!isExtensionValid() || chrome.runtime?.lastError) {
-          showCard('invalidated');
-          return;
-        }
+      if (err || !isExtensionValid()) {
+        showCard('invalidated');
+        return;
+      }
 
-        if (!settings?.apiKey) {
-          showCard('error', '请先点击插件图标，填写 API Key 并保存。', true);
-          return;
-        }
+      if (!settings?.apiKey) {
+        showCard('error', '请先点击插件图标，填写 API Key 并保存。', true);
+        return;
+      }
 
-        try {
-          chrome.runtime.sendMessage(
-            { type: 'TRANSLATE', payload: { text: selectionText, settings } },
-            (res) => {
-              if (reqId !== activeCardRequestId) return; // 已被用户取消，不再弹出
+      safeSendMessage(
+        { type: 'TRANSLATE', payload: { text: selectionText, settings } },
+        (res, trErr) => {
+          if (reqId !== activeCardRequestId) return; // 已被用户取消，不再弹出
 
-              if (!isExtensionValid() || chrome.runtime?.lastError) {
-                showCard('invalidated');
-                return;
-              }
-              if (res?.success) {
-                showCard('result', res.data, false, settings);
-              } else {
-                showCard('error', res?.error || '翻译失败，请检查设置。');
-              }
-            }
-          );
-        } catch (err) {
-          if (isContextInvalidatedError(err)) {
+          if (trErr || !isExtensionValid()) {
             showCard('invalidated');
+            return;
+          }
+          if (res?.success) {
+            showCard('result', res.data, false, settings);
           } else {
-            showCard('error', err?.message || '插件通信异常，请重试。');
+            showCard('error', res?.error || '翻译失败，请检查设置。');
           }
         }
-      });
-    } catch (err) {
-      if (isContextInvalidatedError(err)) {
-        showCard('invalidated');
-      } else {
-        showCard('error', err?.message || '插件通信异常，请重试。');
-      }
-    }
+      );
+    });
   }
 
   // ─── 翻译卡片 ────────────────────────────────────────────────
@@ -612,15 +628,11 @@
 
     // 打开设置提示
     card.querySelector('#ai-open-settings')?.addEventListener('click', () => {
-      try {
-        if (isExtensionValid()) {
-          chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
-        } else {
+      safeSendMessage({ type: 'OPEN_POPUP' }, (res, err) => {
+        if (err || !isExtensionValid()) {
           showCard('invalidated');
         }
-      } catch (e) {
-        showCard('invalidated');
-      }
+      });
     });
 
     // 重试
@@ -1143,46 +1155,35 @@
         if (spinner) spinner.style.display = 'none';
         btn.disabled = false;
       }
+      safeSendMessage({ type: 'GET_SETTINGS' }, (settings, err) => {
+        if (err || !isExtensionValid()) {
+          finish();
+          tgtText.value = '插件通信异常，请刷新当前网页后重试。';
+          return;
+        }
 
-      try {
-        chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
-          if (!isExtensionValid() || chrome.runtime?.lastError) {
-            finish();
-            tgtText.value = '插件通信异常，请刷新当前网页后重试。';
-            return;
-          }
+        if (!settings?.apiKey) {
+          finish();
+          tgtText.value = '请先点击插件图标配置 API Key';
+          return;
+        }
 
-          if (!settings?.apiKey) {
+        safeSendMessage(
+          { type: 'TRANSLATE', payload: { text, settings, targetLang } },
+          (res, trErr) => {
             finish();
-            tgtText.value = '请先点击插件图标配置 API Key';
-            return;
+            if (trErr || !isExtensionValid()) {
+              tgtText.value = '插件通信异常，请刷新当前网页后重试。';
+              return;
+            }
+            if (res?.success) {
+              tgtText.value = res.data;
+            } else {
+              tgtText.value = '翻译失败：' + (res?.error || '未知错误');
+            }
           }
-
-          try {
-            chrome.runtime.sendMessage(
-              { type: 'TRANSLATE', payload: { text, settings, targetLang } },
-              (res) => {
-                finish();
-                if (!isExtensionValid() || chrome.runtime?.lastError) {
-                  tgtText.value = '插件通信异常，请刷新当前网页后重试。';
-                  return;
-                }
-                if (res?.success) {
-                  tgtText.value = res.data;
-                } else {
-                  tgtText.value = '翻译失败：' + (res?.error || '未知错误');
-                }
-              }
-            );
-          } catch (e) {
-            finish();
-            tgtText.value = '插件已重新加载或更新，请刷新当前网页后重试。';
-          }
-        });
-      } catch (e) {
-        finish();
-        tgtText.value = '插件已重新加载或更新，请刷新当前网页后重试。';
-      }
+        );
+      });
     }
     // ── 浮动模式拖拽 ────────────────────────────────────────
     let panelDragInfo = null;
