@@ -39,6 +39,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.tabs.sendMessage(tabs[0].id, { type: 'TOGGLE_PANEL' }).catch(() => {});
     });
   }
+
+  if (message.type === 'OPEN_POPUP') {
+    if (chrome.action && chrome.action.openPopup) {
+      chrome.action.openPopup().catch(() => {});
+    }
+  }
 });
 
 // ─── 快捷键：打开翻译面板 ─────────────────────────────────
