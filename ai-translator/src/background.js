@@ -113,7 +113,8 @@ async function handleTranslation({ text, settings, targetLang }) {
   const url = `${baseUrl}/v1/chat/completions`;
 
   const tgtCode = targetLang || settings?.targetLang || 'zh-CN';
-  const targetName = typeof getLanguageName === 'function' ? getLanguageName(tgtCode) : '简体中文';
+  const getNameFn = typeof getLanguageName === 'function' ? getLanguageName : (typeof self !== 'undefined' && typeof self.getLanguageName === 'function' ? self.getLanguageName : null);
+  const targetName = typeof getNameFn === 'function' ? getNameFn(tgtCode) : '简体中文';
 
   const prompt = `你是一个专业且高效的翻译引擎。请将以下文本翻译为${targetName}，自动识别源语言。
 翻译要求：
@@ -189,8 +190,9 @@ ${sample}`;
 
   const data = await response.json();
   const rawLang = data.choices?.[0]?.message?.content?.trim();
-  if (typeof normalizeBcp47 === 'function') {
-    return normalizeBcp47(rawLang);
+  const normFn = typeof normalizeBcp47 === 'function' ? normalizeBcp47 : (typeof self !== 'undefined' && typeof self.normalizeBcp47 === 'function' ? self.normalizeBcp47 : null);
+  if (typeof normFn === 'function') {
+    return normFn(rawLang);
   }
   return rawLang || 'en-US';
 }

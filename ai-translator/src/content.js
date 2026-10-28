@@ -228,7 +228,8 @@
 
   async function resolveLanguage(text, knownLang) {
     if (knownLang) {
-      return typeof normalizeBcp47 === 'function' ? normalizeBcp47(knownLang) : knownLang;
+      const normFn = typeof normalizeBcp47 === 'function' ? normalizeBcp47 : (typeof window !== 'undefined' && typeof window.normalizeBcp47 === 'function' ? window.normalizeBcp47 : null);
+      return typeof normFn === 'function' ? normFn(knownLang) : knownLang;
     }
     const fast = detectLanguageFast(text);
     if (fast) return fast;
@@ -358,7 +359,8 @@
       }, 10000);
 
       const voices = window.speechSynthesis.getVoices?.() || [];
-      const normLang = typeof normalizeBcp47 === 'function' ? normalizeBcp47(targetLang) : targetLang;
+      const normFn = typeof normalizeBcp47 === 'function' ? normalizeBcp47 : (typeof window !== 'undefined' && typeof window.normalizeBcp47 === 'function' ? window.normalizeBcp47 : null);
+      const normLang = typeof normFn === 'function' ? normFn(targetLang) : targetLang;
       const langPrefix = normLang.split('-')[0].toLowerCase();
       const matchedVoice = voices.find(v => v.lang.toLowerCase() === normLang.toLowerCase())
         || voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
@@ -943,7 +945,7 @@
 
   function buildPanel() {
     // 语言列表数据源
-    const langList = (typeof SUPPORTED_LANGUAGES !== 'undefined' ? SUPPORTED_LANGUAGES : [
+    const langList = (typeof SUPPORTED_LANGUAGES !== 'undefined' ? SUPPORTED_LANGUAGES : (typeof window !== 'undefined' && window.SUPPORTED_LANGUAGES ? window.SUPPORTED_LANGUAGES : [
       { code: 'zh-CN', name: '简体中文', flag: '🇨🇳' },
       { code: 'zh-TW', name: '繁体中文', flag: '🇹🇼' },
       { code: 'en',    name: '英语',     flag: '🇺🇸' },
@@ -953,7 +955,7 @@
       { code: 'de',    name: '德语',     flag: '🇩🇪' },
       { code: 'es',    name: '西班牙语', flag: '🇪🇸' },
       { code: 'ru',    name: '俄语',     flag: '🇷🇺' },
-    ]).map(l => [l.code, `${l.flag ? l.flag + ' ' : ''}${l.name}`]);
+    ])).map(l => [l.code, `${l.flag ? l.flag + ' ' : ''}${l.name}`]);
 
     const div = document.createElement('div');
     div.id = 'ai-tr-panel';

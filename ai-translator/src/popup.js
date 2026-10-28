@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // ── 构建目标语言自定义下拉 ──
-  const rawLangs = typeof SUPPORTED_LANGUAGES !== 'undefined' ? SUPPORTED_LANGUAGES : [
+  const rawLangs = (typeof SUPPORTED_LANGUAGES !== 'undefined' ? SUPPORTED_LANGUAGES : (typeof window !== 'undefined' && window.SUPPORTED_LANGUAGES ? window.SUPPORTED_LANGUAGES : [
     { code: 'zh-CN', name: '简体中文', flag: '🇨🇳' },
     { code: 'zh-TW', name: '繁体中文', flag: '🇹🇼' },
     { code: 'en',    name: '英语',     flag: '🇺🇸' },
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { code: 'de',    name: '德语',     flag: '🇩🇪' },
     { code: 'es',    name: '西班牙语', flag: '🇪🇸' },
     { code: 'ru',    name: '俄语',     flag: '🇷🇺' },
-  ];
+  ]));
   const TGT_LANGS = rawLangs.map(l => [l.code, `${l.flag ? l.flag + ' ' : ''}${l.name}`]);
 
   const tgtMount = document.getElementById('targetLang-mount');
